@@ -26,7 +26,7 @@ function MonitoredSystems.evolve!(mcmc::MPSQtMCMC)
 end
 
 function MCMC.observables(::MPSQtMCMC)
-    return [x -> Renyi_entropy(state(x), subsystems, 1)]
+    return [x -> Renyi_entropy(state(x), p, 1) for p in subsystems]
 end
 
 MCMC.should_save(::MPSQtMCMC, ::Int) = true
@@ -45,6 +45,8 @@ function main(file::HDF5.File)
         cutoff=1.e-15,
         maxdim=maxdim,
     )
+
+	write(save_file(mcmc), join(subsystems,", "), "\n")
 
     Base.with_logger(
         timestamp_logger(
