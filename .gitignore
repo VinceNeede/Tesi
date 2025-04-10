@@ -1,0 +1,6 @@
+*.h5
+*.log
+*.out
+*.png
+*.csv
+Manifest.toml
