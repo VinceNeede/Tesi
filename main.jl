@@ -9,7 +9,7 @@ const maxdim = parsed_args["maxdim"]
 const measure_rate = parsed_args["measure_rate"]
 const final_time = parsed_args["final_time"]
 const num_trajectories = parsed_args["num_trajectories"]
-const subsystems = 3:2:(chain_length ÷ 2)
+const subsystems = 3:2:(chain_length÷2)
 
 const folder_name = "data_$(round(measure_rate; sigdigits=2))_$(chain_length)"
 
@@ -39,14 +39,14 @@ function main(file::HDF5.File)
     acquire(semaphore)
     mcmc = MPSQtMCMC(
         MPS(BertiniState(sites, θ), 0, 2),
-        measure_rate,
+        measure_rate * chain_length,
         [[1 0; 0 0], [0 0; 0 1]];
         checkpoint_file=file,
         cutoff=1.e-15,
         maxdim=maxdim,
     )
 
-	write(save_file(mcmc), join(subsystems,", "), "\n")
+    write(save_file(mcmc), join(subsystems, ", "), "\n")
 
     Base.with_logger(
         timestamp_logger(
