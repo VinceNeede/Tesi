@@ -7,11 +7,21 @@ function get_res(; path::String=".")
     return files
 end
 
-θ = 4.
+γ = 0.04
 chain_length = 50
 
-θ = round(θ; sigdigits=2)
-data = [CSV.read(file, DataFrame) for file in get_res(path="data_$(θ)_$chain_length")]
+γ = round(γ; sigdigits=2)
+data = let
+    files = get_res(path="data_$(γ)_$chain_length")
+    data = Vector{DataFrame}(undef, length(files))
+    for (i, file) in enumerate(files)
+        data[i] = CSV.read(file, DataFrame)
+        for col in eachcol(data[i])
+            replace!(col, NaN => 0.0)
+        end
+    end
+    data
+end
 
 function Statistics.mean(dfs::DataFrame...)
     @assert all(all(names(dfs[1]) .== names(df)) for df in dfs[2:end])
@@ -42,15 +52,17 @@ using Plots
 columns = names(μ)
 
 # Initialize the plot
-p = plot(title="Mean with Error Bars", xlabel="Index", ylabel="Value", legend=:topright)
+p = plot(title="γ = $γ, L = $chain_length", xlabel="S", ylabel="t", legend=:topright, dpi=300)
 
 # Loop through each column and add it to the plot
 for col in columns
-    x = 1:size(μ, 1)          # x-axis values (row indices)
-    y = μ[!, col]             # Mean values for the current column
-    errors = σ[!, col]        # Standard errors for the current column
-    plot!(p, x, y, yerror=errors, label=col, msc=:auto)  # Add to the plot
+    icol = parse(Int, col)
+    x = 0:size(μ, 1)          # x-axis values (row indices)
+    y = [0, μ[!, col]...]             # Mean values for the current column
+    errors = [0, σ[!, col]...]        # Standard errors for the current column
+    plot!(p, x, y, yerror=errors, label="l="*col, msc=:auto)  # Add to the plot
 end
 
 # Display the plot
-display(p)
+# display(p)
+savefig("figure_$(γ)_$chain_length.png")
