@@ -36,6 +36,19 @@ function MCMC.sample(mcmc::MPSQtMCMC)
     return rand(rng_, 1:chain_length, n_measures)
 end
 
+
+function _compute_probs_on_site(T::ITensor, projs::Vector{ITensor})
+    n = length(projs)
+    probs = zeros(n)
+    s = 0
+    for i in 1:n-1
+        probs[i] = real(scalar(conj(dag(T)) * replaceprime(projs[i] * T, 1 => 0)))
+        s += probs[i]
+    end
+    probs[n] = 1 - s
+    return probs
+end
+
 function MCMC.update!(mcmc::MPSQtMCMC, samples::Vector{Int})
     state = MCMC.state
     chain_length = length(state(mcmc))
@@ -44,11 +57,16 @@ function MCMC.update!(mcmc::MPSQtMCMC, samples::Vector{Int})
     for isite in samples
         orthogonalize!(state(mcmc), isite)
         site = siteind(only, state(mcmc), isite)
-        which = rand(rng(mcmc), 1:dim(site))
-        @show which
-        proj = itensor(projectors(mcmc)[which], site', dag(site))
-        state(mcmc)[isite] = apply(proj, state(mcmc)[isite])
-        @show isite
+        proj = let
+            d = dim(site)
+            projs = [itensor(projectors(mcmc)[i], site', dag(site)) for i in 1:d]
+            probs = _compute_probs_on_site(state(mcmc)[isite], projs)
+            r = rand(rng(mcmc))
+            proj_index = findfirst(p -> p ≥ r, cumsum(probs))
+            projs[proj_index]
+        end
+
+        state(mcmc)[isite] = apply(proj, state(mcmc)[isite]) 
         isite < chain_length &&
             setindex!(state(mcmc), state(mcmc)[isite] * state(mcmc)[isite+1], isite:isite+1; orthocenter=isite, cutoff=cutoff)
         isite > 1 &&
