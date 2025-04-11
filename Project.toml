@@ -1,7 +1,7 @@
 name = "MonitoredSystems"
 uuid = "f0281cbe-d702-44d5-985b-1ee9a3ac3040"
 authors = ["VinceNeede <v.bisogno3@studenti.unipi.it>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
