@@ -51,6 +51,7 @@ end
 
 function Renyi_entropy(singualar_evals::Vector{Float64}, n::Int)
     prob = singualar_evals .^ 2
+    prob = filter(x -> x > 1e-15, prob)
     if n == 1
         return -sum(prob .* log.(prob))
     end
