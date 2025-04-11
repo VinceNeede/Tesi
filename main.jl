@@ -20,9 +20,18 @@ const mpo_odd = r54_odd(sites)
 const mpo_even = r54_even(sites)
 
 function MonitoredSystems.evolve!(mcmc::MPSQtMCMC)
+    starting_χ = maxlinkdim(state(mcmc))
+    starting_χ ≥ maxdim && return false
+
     state(mcmc)[:] = apply(mpo_odd, state(mcmc); mcmc.evol_keys...)
     state(mcmc)[:] = apply(mpo_even, state(mcmc); mcmc.evol_keys...)
-    @info "linkdims after evolution" linkdims(state(mcmc))
+
+    finishing_χ = maxlinkdim(state(mcmc))
+    if finishing_χ ≥ maxdim
+        @warn "id $(id(mcmc)) reached maximum dimension $(maxdim)"
+        return false
+    end
+    return true
 end
 
 function MCMC.observables(::MPSQtMCMC)
