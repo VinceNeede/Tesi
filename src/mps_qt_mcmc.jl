@@ -52,7 +52,7 @@ end
 function MCMC.update!(mcmc::MPSQtMCMC, samples::Vector{Int})
     state = MCMC.state
     chain_length = length(state(mcmc))
-    evolve!(mcmc)
+    evolve!(mcmc) || return 0   # when getting false, return so that measures are not performed
     cutoff = get(mcmc.evol_keys, :cutoff, 1.e-15)
     for isite in samples
         orthogonalize!(state(mcmc), isite)
