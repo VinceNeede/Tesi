@@ -2,6 +2,9 @@ using MonitoredSystems, MCMC
 import HDF5
 import ITensorMPS: siteinds, MPS, linkdims, apply
 
+import LinearAlgebra: BLAS
+BLAS.set_num_threads(1)
+
 const parsed_args = parse_args()
 const θ = parsed_args["theta"]
 const chain_length = parsed_args["chain_length"]
@@ -29,7 +32,7 @@ function MCMC.observables(::MPSQtMCMC)
     return [x -> Renyi_entropy(state(x), p, 1) for p in subsystems]
 end
 
-MCMC.should_save(::MPSQtMCMC, ::Int) = true
+# MCMC.should_save(::MPSQtMCMC, ::Int) = true
 
 import Base: Semaphore, acquire, release
 
@@ -69,3 +72,4 @@ HDF5.h5open("checkpoint.h5", "cw") do file
     wait.(tasks)
 end
 cd("../")
+@info "All tasks completed successfully."
