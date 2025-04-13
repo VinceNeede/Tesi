@@ -7,7 +7,7 @@ function get_res(; path::String=".")
     return files
 end
 
-γ = 0.04
+γ = 0.08
 chain_length = 50
 
 γ = round(γ; sigdigits=2)
@@ -52,12 +52,12 @@ using Plots
 columns = names(μ)
 
 # Initialize the plot
-p = plot(title="γ = $γ, L = $chain_length", xlabel="S", ylabel="t", legend=:topright, dpi=300)
+p = plot(title="γ = $γ, L = $chain_length", xlabel="t", ylabel="S", legend=:topright, dpi=300)
 
 # Loop through each column and add it to the plot
+x = 0:size(μ, 1)          # x-axis values (row indices)
 for col in columns
     icol = parse(Int, col)
-    x = 0:size(μ, 1)          # x-axis values (row indices)
     y = [0, μ[!, col]...]             # Mean values for the current column
     errors = [0, σ[!, col]...]        # Standard errors for the current column
     plot!(p, x, y, yerror=errors, label="l="*col, msc=:auto)  # Add to the plot
@@ -66,3 +66,12 @@ end
 # Display the plot
 # display(p)
 savefig("figure_$(γ)_$chain_length.png")
+
+# using LsqFit
+
+# function model(x, p)
+# 	a, b = p
+# 	return a.*x.*exp.(-b .* x)
+# end
+
+# curve_fit(model, 0:size(μ, 1), [0, μ[!, " 25"]...], [1., γ*chain_length])
