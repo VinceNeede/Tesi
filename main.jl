@@ -13,7 +13,7 @@ const maxdim = parsed_args["maxdim"]
 const measure_rate = parsed_args["measure_rate"]
 const final_time = parsed_args["final_time"]
 const num_trajectories = parsed_args["num_trajectories"]
-const subsystems = 3:2:(chain_length÷2)
+const subsystems = reverse((chain_length÷2):-2:3)
 
 const folder_name = "data_$(round(measure_rate; sigdigits=2))_$(chain_length)"
 
