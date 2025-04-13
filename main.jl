@@ -1,6 +1,7 @@
 using MonitoredSystems, MCMC
 import HDF5
-import ITensorMPS: siteinds, MPS, linkdims, apply
+import ITensorMPS: siteinds, MPS, linkdims, apply, maxlinkdim
+import UUIDs: UUID
 
 import LinearAlgebra: BLAS
 BLAS.set_num_threads(1)
@@ -22,6 +23,8 @@ const sites = siteinds("S=1/2", chain_length)
 const mpo_odd = r54_odd(sites)
 const mpo_even = r54_even(sites)
 
+erroed = Channel{UUID}(num_trajectories)
+
 function MonitoredSystems.evolve!(mcmc::MPSQtMCMC)
     starting_χ = maxlinkdim(state(mcmc))
     starting_χ ≥ maxdim && return false
@@ -32,6 +35,7 @@ function MonitoredSystems.evolve!(mcmc::MPSQtMCMC)
     finishing_χ = maxlinkdim(state(mcmc))
     if finishing_χ ≥ maxdim
         @warn "id $(id(mcmc)) reached maximum dimension $(maxdim)"
+        put!(erroed, id(mcmc))
         return false
     end
     return true
@@ -46,6 +50,8 @@ end
 import Base: Semaphore, acquire, release
 
 const semaphore = Semaphore(Threads.nthreads())
+
+Base.global_logger(timestamp_logger(Base.current_logger()))
 
 function main(file::HDF5.File)
     acquire(semaphore)
@@ -65,13 +71,9 @@ function main(file::HDF5.File)
             mcmc_logger(id(mcmc), 1)
         )
     ) do
-        try
-            run!(mcmc, final_time)
-        finally
-            close(save_file(mcmc))
-        end
+        run!(mcmc, final_time)
     end
-
+    close(save_file(mcmc))
     release(semaphore)
 end
 
@@ -80,5 +82,12 @@ HDF5.h5open("checkpoint.h5", "cw") do file
     tasks = [Threads.@spawn main($file) for _ in 1:num_trajectories]
     wait.(tasks)
 end
-cd("../")
+
 @info "All tasks completed successfully."
+while !isempty(erroed)
+    err_id = take!(erroed)
+    @error "The following task failed: $(err_id). Deleting the corresponding files."
+    rm("$(err_id).log")
+    rm("$(err_id).csv")
+end
+cd("../")
