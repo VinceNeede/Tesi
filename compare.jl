@@ -26,14 +26,14 @@ function mean_std(dfs::DataFrame...)
     return DataFrame(m), DataFrame(s)
 end
 
-chain_length = 50
-γs = [0.02, 0.03, 0.04, 0.08]
+chain_lengths = [50, 100]
+γs = [0.04, 0.06, 0.08]
 γs = round.(γs; sigdigits=2)
 
 function collect_data()
-    μ = Dict{Float64,DataFrame}()
-    σ = Dict{Float64,DataFrame}()
-    for γ in γs
+    μ = Dict{Tuple{Int, Float64}, DataFrame}()
+    σ = Dict{Tuple{Int, Float64}, DataFrame}()
+    for chain_length in chain_lengths, γ in γs
         files = get_res(path="data_$(γ)_$chain_length")
         v = DataFrame[]
 		sizehint!(v, length(files))
@@ -49,19 +49,22 @@ function collect_data()
             end
 			push!(v, tmp)
         end
-        μ[γ], σ[γ] = mean_std(v...)
-        μ[γ] = μ[γ][!, sort(names(μ[γ]), by=x -> parse(Int, x))]
-        σ[γ] = σ[γ][!, sort(names(σ[γ]), by=x -> parse(Int, x))] ./ length(v)
+        μ[chain_length, γ],  σ[chain_length, γ] = mean_std(v...)
+        μ[chain_length, γ] = μ[chain_length, γ][!, sort(names(μ[chain_length, γ]), by=x -> parse(Int, x))]
+        σ[chain_length, γ] = σ[chain_length, γ][!, sort(names(σ[chain_length, γ]), by=x -> parse(Int, x))] ./ length(v)
     end
     @info "collected data"
     return μ, σ
 end
 function main(α, β)
-    p = plot(title="l = 25, L = $chain_length", xlabel="γᵝt", ylabel="γᵅS", legend=:topright, dpi=300)
-    for γ in γs
-        x = 0:size(μ[γ], 1)          # x-axis values (row indices)
-        plot!(p, γ^β .* x, γ^α .* [0, μ[γ][!, end]...], yerror=[0, σ[γ][!, end]...] .* γ^α, 
-		label="γ = $(γ), α = $(round(α, sigdigits=4)), β = $(round(β, sigdigits = 4))", msc=:auto)
+    p = plot(title=", α = $(round(α, sigdigits=4)), β = $(round(β, sigdigits = 4))", xlabel="γᵝt", ylabel="γᵅS", legend=:topright, dpi=300)
+    colors = palette(:viridis, length(chain_lengths) * length(γs))
+    color_idx = 1
+    for chain_length in chain_lengths, γ in γs
+        x = 0:size(μ[chain_length, γ], 1)          # x-axis values (row indices)
+        plot!(p, γ^β .* x, γ^α .* [0, μ[chain_length, γ][!, end]...], yerror=[0, σ[chain_length, γ][!, end]...] .* γ^α, 
+		label="L = $chain_length, γ = $(γ)", color = colors[color_idx], msc=colors[color_idx])
+        color_idx += 1
     end
     savefig(p, "comparison.png")
 	return p
