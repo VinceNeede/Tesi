@@ -13,4 +13,7 @@ export
 	MPSQtMCMC,
 	distr,
 	projectors,
-    evolve!
+    evolve!,
+    # particle_density.jl
+    qp_tensors,
+    measure_qp

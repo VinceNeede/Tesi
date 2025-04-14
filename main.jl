@@ -22,6 +22,7 @@ isdir(folder_name) || mkdir(folder_name)
 const sites = siteinds("S=1/2", chain_length)
 const mpo_odd = r54_odd(sites)
 const mpo_even = r54_even(sites)
+const qps = qp_tensors(sites)
 
 erroed = Channel{UUID}(num_trajectories)
 
@@ -42,7 +43,10 @@ function MonitoredSystems.evolve!(mcmc::MPSQtMCMC)
 end
 
 function MCMC.observables(::MPSQtMCMC)
-    return [x -> Renyi_entropy(state(x), p, 1) for p in subsystems]
+    return [
+        x -> measure_qp(state(x), qps),
+        (x -> Renyi_entropy(state(x), p, 1) for p in subsystems)...
+    ]
 end
 
 # MCMC.should_save(::MPSQtMCMC, ::Int) = true
@@ -64,7 +68,7 @@ function main(file::HDF5.File)
         maxdim=maxdim,
     )
 
-    write(save_file(mcmc), join(subsystems, ", "), "\n")
+    write(save_file(mcmc), join(["N", subsystems...], ", "), "\n")
 
     Base.with_logger(
         timestamp_logger(
