@@ -26,15 +26,14 @@ function mean_std(dfs::DataFrame...)
     return DataFrame(m), DataFrame(s)
 end
 
-chain_lengths = [50, 100]
-γs = [0.04, 0.06, 0.08]
-γs = round.(γs; sigdigits=2)
+chain_lengths = [50]
+γs = [0.25, 0.125, 0.0625]
 
 function collect_data()
     μ = Dict{Tuple{Int, Float64}, DataFrame}()
     σ = Dict{Tuple{Int, Float64}, DataFrame}()
     for chain_length in chain_lengths, γ in γs
-        files = get_res(path="data_$(γ)_$chain_length")
+        files = get_res(path="data_$(round(γ, sigdigits=2))_$chain_length")
         v = DataFrame[]
 		sizehint!(v, length(files))
         for (i, file) in ProgressBar(enumerate(files))
@@ -50,24 +49,30 @@ function collect_data()
 			push!(v, tmp)
         end
         μ[chain_length, γ],  σ[chain_length, γ] = mean_std(v...)
-        μ[chain_length, γ] = μ[chain_length, γ][!, sort(names(μ[chain_length, γ]), by=x -> parse(Int, x))]
-        σ[chain_length, γ] = σ[chain_length, γ][!, sort(names(σ[chain_length, γ]), by=x -> parse(Int, x))] ./ length(v)
+		μ[chain_length, γ] = μ[chain_length, γ][!, sort(names(μ[chain_length, γ]), by=x -> x == "N" ? 0 : parse(Int, x))]
+		σ[chain_length, γ] = σ[chain_length, γ][!, sort(names(σ[chain_length, γ]), by=x -> x == "N" ? 0 : parse(Int, x))] ./ sqrt(length(v))
     end
     @info "collected data"
     return μ, σ
 end
-function main(α, β)
-    p = plot(title=", α = $(round(α, sigdigits=4)), β = $(round(β, sigdigits = 4))", xlabel="γᵝt", ylabel="γᵅS", legend=:topright, dpi=300)
-    colors = palette(:viridis, length(chain_lengths) * length(γs))
+function main(α=1., β=1.)
+    plot_S = plot(title="α = $(round(α, sigdigits=4)), β = $(round(β, sigdigits = 4))", xlabel="γᵝt", ylabel="γᵅS", legend=:topright, dpi=300)
+    plot_N = plot(xlablel="t", ylabel="N", legend=:topright, dpi=300)
+	colors = palette(:viridis, length(chain_lengths) * length(γs))
     color_idx = 1
     for chain_length in chain_lengths, γ in γs
-        x = 0:size(μ[chain_length, γ], 1)          # x-axis values (row indices)
-        plot!(p, γ^β .* x, γ^α .* [0, μ[chain_length, γ][!, end]...], yerror=[0, σ[chain_length, γ][!, end]...] .* γ^α, 
+		# Use the first column for plot_N
+		x = 0:size(μ[chain_length, γ], 1)          # x-axis values (row indices)
+		plot!(plot_N, 1:size(μ[chain_length, γ], 1), μ[chain_length, γ][!, 1], yerror=σ[chain_length, γ][!, 1], 
+			  label="L = $chain_length, γ = $(γ)", color=colors[color_idx], msc=colors[color_idx])
+
+        plot!(plot_S, γ^β .* x, γ^α .* [0, μ[chain_length, γ][!, end]...], yerror=[0, σ[chain_length, γ][!, end]...] .* γ^α, 
 		label="L = $chain_length, γ = $(γ)", color = colors[color_idx], msc=colors[color_idx])
         color_idx += 1
     end
-    savefig(p, "comparison.png")
-	return p
+	savefig(plot_N, "comparison_N.png")
+	savefig(plot_S, "comparison.png")
+	return plot_S
 end
 
 function model(x, p)
