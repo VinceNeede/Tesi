@@ -37,12 +37,14 @@ function MonitoredSystems.evolve!(mcmc::MPSQtMCMC)
     if finishing_χ ≥ maxdim
         @warn "id $(id(mcmc)) reached maximum dimension $(maxdim)"
         put!(erroed, id(mcmc))
+        mcmc.status = :error
         return false
     end
     return true
 end
 
-function MCMC.observables(::MPSQtMCMC)
+function MCMC.observables(mcmc::MPSQtMCMC)
+    mcmc.status === :error && return []
     return [
         x -> measure_qp(state(x), qps),
         (x -> Renyi_entropy(state(x), p, 1) for p in subsystems)...

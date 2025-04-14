@@ -3,6 +3,7 @@ abstract type AbstractMPSQtMCMC <: AbstractBaseMCMC{MPS} end
 @BaseMCMC_def MPS mutable struct MPSQtMCMC <: AbstractMPSQtMCMC
     distr::Poisson
     projectors::Vector{Matrix{<:Number}}
+    status::Symbol
     evol_keys::Base.Pairs
 end
 
@@ -21,6 +22,7 @@ function MPSQtMCMC(state::MPS, λ::Real, projectors::Vector{Matrix{T}};
         save_file_,
         Poisson(λ),
         projectors,
+        :ok,
         kwargs
     )
 end
@@ -50,6 +52,7 @@ function _compute_probs_on_site(T::ITensor, projs::Vector{ITensor})
 end
 
 function MCMC.update!(mcmc::MPSQtMCMC, samples::Vector{Int})
+    mcmc.status == :ok || return 0
     state = MCMC.state
     chain_length = length(state(mcmc))
     evolve!(mcmc) || return 0   # when getting false, return so that measures are not performed
