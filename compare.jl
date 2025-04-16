@@ -26,8 +26,8 @@ function mean_std(dfs::DataFrame...)
     return DataFrame(m), DataFrame(s)
 end
 
-chain_lengths = [50]
-γs = [0.25, 0.125, 0.0625]
+chain_lengths = [100]
+γs = [0.04]
 
 function collect_data()
     μ = Dict{Tuple{Int, Float64}, DataFrame}()
@@ -57,16 +57,16 @@ function collect_data()
 end
 function main(α=1., β=1.)
     plot_S = plot(title="α = $(round(α, sigdigits=4)), β = $(round(β, sigdigits = 4))", xlabel="γᵝt", ylabel="γᵅS", legend=:topright, dpi=300)
-    plot_N = plot(xlablel="t", ylabel="N", legend=:topright, dpi=300)
+    plot_N = plot(xlablel="t", ylabel="N/L", legend=:topright, dpi=300)
 	colors = palette(:viridis, length(chain_lengths) * length(γs))
     color_idx = 1
     for chain_length in chain_lengths, γ in γs
 		# Use the first column for plot_N
-		x = 0:size(μ[chain_length, γ], 1)          # x-axis values (row indices)
-		plot!(plot_N, 1:size(μ[chain_length, γ], 1), μ[chain_length, γ][!, 1], yerror=σ[chain_length, γ][!, 1], 
+		x = 1:size(μ[chain_length, γ], 1)          # x-axis values (row indices)
+		plot!(plot_N, 1:size(μ[chain_length, γ], 1), μ[chain_length, γ][!, 1] ./ chain_length, yerror=σ[chain_length, γ][!, 1]./ chain_length, 
 			  label="L = $chain_length, γ = $(γ)", color=colors[color_idx], msc=colors[color_idx])
 
-        plot!(plot_S, γ^β .* x, γ^α .* [0, μ[chain_length, γ][!, end]...], yerror=[0, σ[chain_length, γ][!, end]...] .* γ^α, 
+        plot!(plot_S, γ^β .* x, γ^α .* μ[chain_length, γ][!, end], yerror=σ[chain_length, γ][!, end] .* γ^α, 
 		label="L = $chain_length, γ = $(γ)", color = colors[color_idx], msc=colors[color_idx])
         color_idx += 1
     end
