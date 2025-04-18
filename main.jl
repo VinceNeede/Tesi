@@ -8,11 +8,11 @@
 const parsed_args = parse_args()
 const θ = parsed_args["theta"]
 const chain_length = parsed_args["chain_length"]
-const maxdim = parsed_args["maxdim"]
+@everywhere const maxdim = $parsed_args["maxdim"]
 const measure_rate = parsed_args["measure_rate"]
 const final_time = parsed_args["final_time"]
 const num_trajectories = parsed_args["num_trajectories"]
-const subsystems = reverse((chain_length÷2):-2:3)
+@everywhere const subsystems = reverse(($chain_length÷2):-2:3)
 
 @everywhere function MonitoredSystems.evolve!(mcmc::MPSQtMCMC)
     starting_χ = maxlinkdim(state(mcmc))
@@ -38,17 +38,16 @@ end
     ]
 end
 
-const sites = siteinds("S=1/2", chain_length)
-@everywhere mpo_odd = r54_odd($sites)
-@everywhere mpo_even = r54_even($sites)
-@everywhere qps = qp_tensors($sites)
-@everywhere bertini = BertiniState($sites, $θ)
+@everywhere const sites = siteinds("S=1/2", $chain_length)
+@everywhere const mpo_odd = r54_odd(sites)
+@everywhere const mpo_even = r54_even(sites)
+@everywhere const qps = qp_tensors(sites)
 
-@everywhere function main(chain_length::Int, maxdim::Int, measure_rate::Float64, final_time::Int, subsystems::AbstractVector{Int}, file::HDF5.File)
+@everywhere function main(chain_length::Int, maxdim::Int, θ::Float64, measure_rate::Float64, final_time::Int, subsystems::AbstractVector{Int}, file::HDF5.File)
 
 
     mcmc = MPSQtMCMC(
-        MPS(bertini, 0, 2),
+        MPS(BertiniState(sites, θ), 0, 2),
         measure_rate * chain_length,
         [[1 0; 0 0], [0 0; 0 1]];
         checkpoint_file=file,
@@ -81,10 +80,7 @@ isdir(folder_name) || mkdir(folder_name)
 @everywhere cd($folder_name)
 
 HDF5.h5open("checkpoint.h5", "cw") do file  # This may be the wrong place to open the file
-    t = [
-        @spawnat :any main(chain_length, maxdim,
-            measure_rate, final_time, subsystems, file) for _ in 1:num_trajectories]
-    wait.(t)
+    pmap(_ -> main(chain_length, maxdim, θ, measure_rate, final_time, subsystems, file), 1:num_trajectories)
 end
 @info "All tasks finished"
 
