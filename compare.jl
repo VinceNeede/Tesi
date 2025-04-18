@@ -69,7 +69,7 @@ function main(α=1., β=1.)
         y = μ[chain_length, γ, θ]
         yerr = σ[chain_length, γ, θ]
         x = 1:size(y, 1)          # x-axis values (row indices)
-        plot!(plot_N, 1:size(y, 1), y[!, 1] ./ chain_length, yerror=yerr[!, 1] ./ chain_length,
+        plot!(plot_N, x, y[!, 1] ./ chain_length, yerror=yerr[!, 1] ./ chain_length,
             label="L = $chain_length, γ = $(γ), θ = $(θ)", color=colors[color_idx], msc=colors[color_idx])
 
         plot!(plot_S, γ^β .* x, γ^α .* y[!, end] ./ s(θ), yerror=yerr[!, end] .* γ^α ./ s(θ),
