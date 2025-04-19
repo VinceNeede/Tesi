@@ -1,7 +1,7 @@
 name = "MonitoredSystems"
 uuid = "f0281cbe-d702-44d5-985b-1ee9a3ac3040"
-authors = ["VinceNeede <v.bisogno3@studenti.unipi.it>"]
 version = "0.1.1"
+authors = ["VinceNeede <v.bisogno3@studenti.unipi.it>"]
 
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
@@ -9,6 +9,7 @@ CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+Glob = "c27321d9-0574-5035-807b-f59d2c89b15c"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 ITensorMPS = "0d1a4710-d33b-49a5-8f18-73bdf49b47e2"
 ITensors = "9136182c-28ba-11e9-034c-db9fb085ebd5"
@@ -26,6 +27,7 @@ CSV = "0.10.15"
 DataFrames = "1.7.0"
 Dates = "1.11.0"
 Distributions = "0.25.118"
+Glob = "1.3.1"
 HDF5 = "0.17.2"
 ITensorMPS = "0.3.16"
 ITensors = "0.9.2"
