@@ -43,7 +43,7 @@ function timestamp_logger(logger::AbstractLogger)
     end
 end
 
-ITensors.state(::StateName"ψᶿ", ::SiteType"Qubit"; θ::Float64) = [sqrt(θ), sqrt(1 - θ)]
+ITensors.state(::StateName"ψᶿ", ::SiteType"Qubit"; θ::Float64) = [sqrt(1 - θ), sqrt(θ)]
 
 function BertiniState(sites, θ::Float64)::Vector{ITensor}
     return [isodd(n) ? ITensorMPS.state(sites[n], "ψᶿ"; θ=θ) : ITensorMPS.state(sites[n], "Up") for n in 1:length(sites)]
