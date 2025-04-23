@@ -1,8 +1,8 @@
 @everywhere using MonitoredSystems, MCMC
 @everywhere import HDF5
-@everywhere import ITensorMPS: siteinds, MPS, linkdims, apply, maxlinkdim
+@everywhere import ITensorMPS: siteinds, MPS, MPO, linkdims, apply, maxlinkdim
 @everywhere import UUIDs: UUID
-@everywhere import LinearAlgebra: BLAS
+@everywhere import LinearAlgebra: BLAS, LAPACKException
 @everywhere BLAS.set_num_threads(1)
 
 const parsed_args = parse_args()
@@ -14,14 +14,28 @@ const final_time = parsed_args["final_time"]
 const num_trajectories = parsed_args["num_trajectories"]
 @everywhere const subsystems = reverse(($chain_length÷2):-2:3)
 
+@everywhere function _try_evolve(mcmc::MPSQtMCMC, mpo::MPO; kwargs...)
+	try
+		state(mcmc)[:] = apply(mpo, state(mcmc); kwargs...)
+	catch e
+		if e isa LAPACKException && e.info > 0
+			@error "LAPACKException for id: $(id(mcmc)), saving configuration for reproduction. the info field is saved as `iteration` attribute"
+			save!(mcmc, e.info)
+			mcmc.status = :error
+		else
+			rethrow(e)
+		end
+	end
+end
+
 @everywhere function MonitoredSystems.evolve!(mcmc::MPSQtMCMC)
     starting_χ = maxlinkdim(state(mcmc))
     starting_χ ≥ maxdim && return false
 
-    state(mcmc)[:] = apply(mpo_odd, state(mcmc); mcmc.evol_keys...)
-    state(mcmc)[:] = apply(mpo_even, state(mcmc); mcmc.evol_keys...)
+	_try_evolve(mcmc, mpo_odd; mcmc.evolve_keys...)
+	_try_evolve(mcmc, mpo_even; mcmc.evolve_keys...)
 
-    finishing_χ = maxlinkdim(state(mcmc))
+	finishing_χ = maxlinkdim(state(mcmc))
     if finishing_χ ≥ maxdim
         @warn "id $(id(mcmc)) reached maximum dimension $(maxdim)"
         mcmc.status = :error
@@ -51,7 +65,7 @@ end
         measure_rate * chain_length,
         [[1 0; 0 0], [0 0; 0 1]];
         checkpoint_file=file,
-        cutoff=1.e-15,
+        cutoff=1.e-13,
         maxdim=maxdim,
     )
 
@@ -69,7 +83,7 @@ end
     end
 
     if mcmc.status === :error
-        @error "id $(id(mcmc)) reached maximum dimension $(maxdim)"
+        @error "id $(id(mcmc)) erroed, removing files"
         rm("$(id(mcmc)).log")
         rm("$(id(mcmc)).csv")
     end
