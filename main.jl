@@ -20,7 +20,12 @@ const num_trajectories = parsed_args["num_trajectories"]
 	catch e
 		if e isa LAPACKException && e.info > 0
 			@error "LAPACKException for id: $(id(mcmc)), saving configuration for reproduction. the info field is saved as `iteration` attribute"
-			save!(mcmc, e.info)
+			HDF5.h5open("$(id(mcmc)).h5","cw") do file
+				old_file = mcmc.checkpoint_file
+				mcmc.checkpoint_file = file
+				save!(mcmc, e.info)
+				mcmc.checkpoint_file = old_file
+			end
 			mcmc.status = :error
 		else
 			rethrow(e)
