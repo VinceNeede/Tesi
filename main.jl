@@ -2,8 +2,10 @@
 @everywhere import HDF5
 @everywhere import ITensorMPS: siteinds, MPS, MPO, linkdims, apply, maxlinkdim
 @everywhere import UUIDs: UUID
-@everywhere import LinearAlgebra: BLAS, LAPACKException
+@everywhere import LinearAlgebra: LinearAlgebra, BLAS, LAPACKException
 @everywhere BLAS.set_num_threads(1)
+
+@everywhere LinearAlgebra.default_eigen_alg(::AbstractMatrix) = LinearAlgebra.RobustRepresentations()
 
 const parsed_args = parse_args()
 const θ = parsed_args["theta"]
