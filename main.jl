@@ -1,48 +1,67 @@
+@everywhere using MKL
+@everywhere import LinearAlgebra: LinearAlgebra, BLAS, LAPACKException
+@everywhere MKL.set_num_threads(3)
 @everywhere using MonitoredSystems, MCMC
 @everywhere import HDF5
 @everywhere import ITensorMPS: siteinds, MPS, MPO, linkdims, apply, maxlinkdim
 @everywhere import UUIDs: UUID
-@everywhere import LinearAlgebra: LinearAlgebra, BLAS, LAPACKException
-@everywhere BLAS.set_num_threads(1)
 
-@everywhere LinearAlgebra.default_eigen_alg(::AbstractMatrix) = LinearAlgebra.RobustRepresentations()
+# @everywhere LinearAlgebra.default_eigen_alg(::AbstractMatrix) = LinearAlgebra.RobustRepresentations()
 
-const parsed_args = parse_args()
-const θ = parsed_args["theta"]
-const chain_length = parsed_args["chain_length"]
-@everywhere const maxdim = $parsed_args["maxdim"]
-const measure_rate = parsed_args["measure_rate"]
-const final_time = parsed_args["final_time"]
-const num_trajectories = parsed_args["num_trajectories"]
-@everywhere const subsystems = reverse(($chain_length÷2):-2:3)
+# const parsed_args = parse_args()
+# const θ = parsed_args["theta"]
+# const chain_length = parsed_args["chain_length"]
+# @everywhere const maxdim = $parsed_args["maxdim"]
+# const measure_rate = parsed_args["measure_rate"]
+# const final_time = parsed_args["final_time"]
+# const num_trajectories = parsed_args["num_trajectories"]
+# @everywhere const subsystems = reverse(($chain_length÷2):-2:3)
+
+"""
+	Parameters to be set everywhere before including
+	maxdim
+	to be set on master
+	chain_length
+"""
+
+function set_mpo()
+    @everywhere const global sites = $(siteinds("S=1/2", chain_length))
+	global sites
+	sleep(0.1)
+    @everywhere const global mpo_odd = $(r54_odd(sites))
+    @everywhere const global mpo_even = $(r54_even(sites))
+    @everywhere const global qps = $(qp_tensors(sites))
+    @everywhere const global subsystems = $(reverse((chain_length÷2):-2:3))
+
+end
 
 @everywhere function _try_evolve(mcmc::MPSQtMCMC, mpo::MPO; kwargs...)
-	try
-		state(mcmc)[:] = apply(mpo, state(mcmc); kwargs...)
-	catch e
-		if e isa LAPACKException && e.info > 0
-			@error "LAPACKException for id: $(id(mcmc)), saving configuration for reproduction. the info field is saved as `iteration` attribute"
-			HDF5.h5open("$(id(mcmc)).h5","cw") do file
-				old_file = mcmc.checkpoint_file
-				mcmc.checkpoint_file = file
-				save!(mcmc, e.info)
-				mcmc.checkpoint_file = old_file
-			end
-			mcmc.status = :error
-		else
-			rethrow(e)
-		end
-	end
+    try
+        state(mcmc)[:] = apply(mpo, state(mcmc); kwargs...)
+    catch e
+        if e isa LAPACKException && e.info > 0
+            @error "LAPACKException for id: $(id(mcmc)), saving configuration for reproduction. the info field is saved as `iteration` attribute"
+            HDF5.h5open("$(id(mcmc)).h5", "cw") do file
+                old_file = mcmc.checkpoint_file
+                mcmc.checkpoint_file = file
+                save!(mcmc, e.info)
+                mcmc.checkpoint_file = old_file
+            end
+            mcmc.status = :error
+        else
+            rethrow(e)
+        end
+    end
 end
 
 @everywhere function MonitoredSystems.evolve!(mcmc::MPSQtMCMC)
     starting_χ = maxlinkdim(state(mcmc))
     starting_χ ≥ maxdim && return false
 
-	_try_evolve(mcmc, mpo_odd; mcmc.evol_keys...)
-	_try_evolve(mcmc, mpo_even; mcmc.evol_keys...)
+    _try_evolve(mcmc, mpo_odd; mcmc.evol_keys...)
+    _try_evolve(mcmc, mpo_even; mcmc.evol_keys...)
 
-	finishing_χ = maxlinkdim(state(mcmc))
+    finishing_χ = maxlinkdim(state(mcmc))
     if finishing_χ ≥ maxdim
         @warn "id $(id(mcmc)) reached maximum dimension $(maxdim)"
         mcmc.status = :error
@@ -58,11 +77,6 @@ end
         (x -> Renyi_entropy(state(x), p, 1) for p in subsystems)...
     ]
 end
-
-@everywhere const sites = siteinds("S=1/2", $chain_length)
-@everywhere const mpo_odd = r54_odd(sites)
-@everywhere const mpo_even = r54_even(sites)
-@everywhere const qps = qp_tensors(sites)
 
 @everywhere function main(chain_length::Int, maxdim::Int, θ::Float64, measure_rate::Float64, final_time::Int, subsystems::AbstractVector{Int}, file::HDF5.File)
 
@@ -96,13 +110,24 @@ end
     end
 end
 
-folder_name = "data_$(round(θ; sigdigits=2))_$(round(measure_rate; sigdigits=2))_$chain_length"
-isdir(folder_name) || mkdir(folder_name)
-@everywhere cd($folder_name)
+@everywhere using LoggingExtras
+using Glob
 
-HDF5.h5open("checkpoint.h5", "cw") do file  # This may be the wrong place to open the file
-    pmap(_ -> main(chain_length, maxdim, θ, measure_rate, final_time, subsystems, file), 1:num_trajectories)
+function exe(θ::Float64, measure_rate::Float64, final_time::Int, num_trajectories::Int; workpool=CachingPool(workers()))
+    folder_name = "data_$(round(θ; sigdigits=2))_$(round(measure_rate; sigdigits=2))_$chain_length"
+    isdir(folder_name) || mkdir(folder_name)
+    @everywhere cd($folder_name)
+    open("nohup.out", "w") do file
+        redirect_stdout(file) do
+            HDF5.h5open("checkpoint.h5", "cw") do file  # This may be the wrong place to open the file
+                pmap(_ -> main(chain_length, maxdim, θ, measure_rate, final_time, subsystems, file),
+                    workpool, 1:num_trajectories;
+                    on_error=e -> @error "Error" exception = (e, catch_backtrace()))
+            end
+            @info "All tasks finished"
+            @everywhere cd("../")
+            run(`tar -rvf $(folder_name * ".tar") $(readdir(glob"*.csv", folder_name))`)
+            run(`rm $(readdir(glob"*.csv", folder_name))`)
+        end
+    end
 end
-@info "All tasks finished"
-
-cd("../")
