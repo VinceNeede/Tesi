@@ -117,17 +117,15 @@ function exe(θ::Float64, measure_rate::Float64, final_time::Int, num_trajectori
     folder_name = "data_$(round(θ; sigdigits=2))_$(round(measure_rate; sigdigits=2))_$chain_length"
     isdir(folder_name) || mkdir(folder_name)
     @everywhere cd($folder_name)
-    open("nohup.out", "w") do file
-        redirect_stdout(file) do
-            HDF5.h5open("checkpoint.h5", "cw") do file  # This may be the wrong place to open the file
-                pmap(_ -> main(chain_length, maxdim, θ, measure_rate, final_time, subsystems, file),
-                    workpool, 1:num_trajectories;
-                    on_error=e -> @error "Error" exception = (e, catch_backtrace()))
-            end
-            @info "All tasks finished" θ measure_rate final_time num_trajectories length(glob("*.csv")) 
-            @everywhere cd("../")
-            run(`tar -rvf $(folder_name * ".tar") $(readdir(glob"*.csv", folder_name))`)
-            run(`rm $(readdir(glob"*.csv", folder_name))`)
+    redirect_stdio(; stdout="nohup.out", stderr="nohup.out") do
+        HDF5.h5open("checkpoint.h5", "cw") do file  # This may be the wrong place to open the file
+            pmap(_ -> main(chain_length, maxdim, θ, measure_rate, final_time, subsystems, file),
+                workpool, 1:num_trajectories;
+                on_error=e -> @error "Error" exception = (e, catch_backtrace()))
         end
+        @info "All tasks finished" θ measure_rate final_time num_trajectories length(glob("*.csv")) 
+        @everywhere cd("../")
+        run(`tar -rvf $(folder_name * ".tar") $(glob("*.csv", folder_name))`)
+        run(`rm $(glob("*.csv", folder_name))`)
     end
 end
