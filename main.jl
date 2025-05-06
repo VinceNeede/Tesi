@@ -123,9 +123,9 @@ function exe(θ::Float64, measure_rate::Float64, final_time::Int, num_trajectori
                 workpool, 1:num_trajectories;
                 on_error=e -> @error "Error" exception = (e, catch_backtrace()))
         end
-        @info "All tasks finished" θ measure_rate final_time num_trajectories length(glob("*.csv")) 
-        @everywhere cd("../")
-        run(`tar -rvf $(folder_name * ".tar") $(glob("*.csv", folder_name))`)
-        run(`rm $(glob("*.csv", folder_name))`)
     end
+    @info "All tasks finished" θ measure_rate final_time num_trajectories length(glob("*.csv")) 
+    @everywhere cd("../")
+    run(pipeline(`tar -rvf $(folder_name * ".tar") $(glob("*.csv", folder_name))`, devnull))
+    run(`rm $(glob("*.csv", folder_name))`)
 end
