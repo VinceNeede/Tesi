@@ -34,8 +34,16 @@ function qp_tensors(sites::ITensors.Indices)
 
     res = Vector{ITensor}(undef, N)
     res[1] = itensor(leftmost, sites[1]', sites[2]', dag(sites[1]), dag(sites[2]))
-    for i in 2:N-1
-        res[i] = itensor(central, sites[i-1]', sites[i]', sites[i+1]', dag(sites[i-1]), dag(sites[i]), dag(sites[i+1]))
+    for i = 2:(N-1)
+        res[i] = itensor(
+            central,
+            sites[i-1]',
+            sites[i]',
+            sites[i+1]',
+            dag(sites[i-1]),
+            dag(sites[i]),
+            dag(sites[i+1]),
+        )
     end
     res[N] = itensor(rightmost, sites[N-1]', sites[N]', dag(sites[N-1]), dag(sites[N]))
     return res

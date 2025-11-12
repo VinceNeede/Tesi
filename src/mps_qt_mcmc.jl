@@ -35,13 +35,16 @@ to check if the sampler erroed during evolution.
     evol_keys::Base.Pairs
 end
 
-function MPSQtMCMC(state::MPS, λ::Real, projectors::Vector{Matrix{T}};
-    id::UUID=uuid4(),
-    rng::Xoshiro=Xoshiro([rand(UInt64) for _ in 1:5]...),
-    checkpoint_file::HDF5.File=default_checkpoint_file(id),
-    save_file_::IO=default_save_file(id),
+function MPSQtMCMC(
+    state::MPS,
+    λ::Real,
+    projectors::Vector{Matrix{T}};
+    id::UUID = uuid4(),
+    rng::Xoshiro = Xoshiro([rand(UInt64) for _ = 1:5]...),
+    checkpoint_file::HDF5.File = default_checkpoint_file(id),
+    save_file_::IO = default_save_file(id),
     kwargs...,
-) where T<:Number
+) where {T<:Number}
     return MPSQtMCMC(
         id,
         rng,
@@ -51,7 +54,7 @@ function MPSQtMCMC(state::MPS, λ::Real, projectors::Vector{Matrix{T}};
         Poisson(λ),
         projectors,
         :ok,
-        kwargs
+        kwargs,
     )
 end
 
@@ -80,7 +83,7 @@ function _compute_probs_on_site(T::ITensor, projs::Vector{ITensor})
     n = length(projs)
     probs = zeros(n)
     s = 0
-    for i in 1:n
+    for i = 1:n
         probs[i] = real(scalar(conj(dag(T)) * replaceprime(projs[i] * T, 1 => 0)))
         s += probs[i]
     end
@@ -107,15 +110,13 @@ function MCMC.update!(mcmc::MPSQtMCMC, samples::Vector{Int})
         site = siteind(only, state(mcmc), isite)
         proj, prob = let
             d = dim(site)
-            projs = [itensor(projectors(mcmc)[i], site', dag(site)) for i in 1:d] # projectors as ITensors
+            projs = [itensor(projectors(mcmc)[i], site', dag(site)) for i = 1:d] # projectors as ITensors
             probs = _compute_probs_on_site(state(mcmc)[isite], projs)
             proj_index = rand(rng(mcmc), Categorical(probs)) # sample the index according to probs
             projs[proj_index], probs[proj_index]
         end
 
-        state(mcmc) = apply(proj, state(mcmc); cutoff=cutoff) / sqrt(prob) # apply projector and normalize
+        state(mcmc) = apply(proj, state(mcmc); cutoff = cutoff) / sqrt(prob) # apply projector and normalize
     end
     return length(samples)
 end
-
-
