@@ -20,4 +20,5 @@ import UUIDs:
 import HDF5:
 	HDF5
 import Distributions:
+    DiscreteUnivariateDistribution,
 	Poisson
