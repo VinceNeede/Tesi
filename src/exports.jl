@@ -2,7 +2,7 @@ export
     # utils.jl
     parse_args,
     timestamp_logger,
-    BertiniState,
+    BiasedNeelState,
     Renyi_entropy,
     measure_singular_eigvals,
     # r54.jl
