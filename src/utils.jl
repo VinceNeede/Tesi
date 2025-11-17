@@ -73,8 +73,8 @@ Construct the initial state of a chain with alternating qubits in state
 """
 function BiasedNeelState(sites, θ::Float64)::Vector{ITensor}
     return [
-        isodd(n) ? ITensorMPS.state(sites[n], "ψᶿ"; θ = θ) :
-        ITensorMPS.state(sites[n], "Up") for n = 1:length(sites)
+        isodd(n) ? ITensorMPS.state(site, "ψᶿ"; θ = θ) : ITensorMPS.state(site, "Up") for
+        (n, site) in enumerate(sites)
     ]
 end
 
@@ -87,10 +87,13 @@ returns the vector of singular values. A small warning is emitted if the
 singular values squared do not sum approximately to 1.
 """
 function measure_singular_eigvals(psi::MPS, position::Int)
-    orthogonalize!(psi, position)
+    chain_length = length(psi)
+    (1 ≤ position < chain_length) ||
+        error("Position $position is out of bounds for MPS of length $chain_length")
+    psi = orthogonalize(psi, position)
     T = psi[position]
     Linds = uniqueinds(T, psi[position+1])
-    U, S, V = svd(T, Linds...)
+    _, S, _ = svd(T, Linds...)
     segs = diag(matrix(S))
     sum(segs .^ 2) ≈ 1.0 ||
         @warn "The singular values do not sum to 1.0, state may not be normalized"
