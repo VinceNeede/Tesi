@@ -1,122 +1,247 @@
-abstract type AbstractMPSQtMCMC <: AbstractBaseMCMC{MPS} end
+"""
+    Operators(
+        sites::ITensors.Indices,
+        projectors::Vector{Matrix{T}},
+    )
+Create the MPOs and measurement operators needed for the MPSQtMCMC sampler.
+- `sites::ITensors.Indices`: The site indices of the spin chain.
+- `projectors::Vector{Matrix{T}}`: The projectors to be used during measurements.
+It returns an `Operators` struct containing the odd and even site MPOs,
+the projectors, and the density operators for quasiparticle measurements.
+"""
+struct Operators
+    odd_sites_mpo::MPO
+    even_sites_mpo::MPO
+    projectors::Vector{Matrix{<:Number}}
+    density_ops::Vector{Array{Float64}}
+    function Operators(
+        sites::ITensors.Indices,
+        projectors::Vector{Matrix{T}},
+    ) where {T<:Number}
+        odd_sites_mpo = r54_odd(sites)
+        even_sites_mpo = r54_even(sites)
+        density_ops = qp_tensors(sites)
+        new(odd_sites_mpo, even_sites_mpo, projectors, density_ops)
+    end
+end
+
+"""
+    Parameters(
+        maxdim::Int,
+        cutoff::Float64,
+        distribution::DiscreteUnivariateDistribution,
+        final_time::Int,
+        subsystems::AbstractVector{Int} 
+    )
+Wrapper struct to hold the parameters for the MPSQtMCMC sampler.
+- `maxdim::Int`: Maximum bond dimension for the MPS evolution.
+- `cutoff::Float64`: Cutoff for singular value decomposition during MPS evolution.
+- `distribution::DiscreteUnivariateDistribution`: Distribution for sampling measurement positions.
+- `final_time::Int`: Total number of time steps for the evolution.
+- `subsystems::AbstractVector{Int}`: List of subsystem sizes for Renyi entropy
+measurements.
+"""
+struct MCMCParameters
+    maxdim::Int
+    cutoff::Float64
+    distribution::DiscreteUnivariateDistribution
+    final_time::Int
+    subsystems::AbstractVector{Int}
+end
+
+"""
+    MCMCParameters(
+        maxdim::Int,
+        measure_rate::Float64,
+        final_time::Int,
+        subsystems::AbstractVector{Int};
+        cutoff::Float64=eps(),
+    )
+Helper function to create an `MCMCParameters` struct.
+- `maxdim::Int`: Maximum bond dimension for the MPS evolution.
+- `measure_rate::Float64`: Probability that a measurement occurs at any site in a time step.
+- `final_time::Int`: Total number of time steps for the evolution.
+- `subsystems::AbstractVector{Int}`: List of subsystem sizes for Renyi entropy measurements.
+The distribution is set to a Poisson distribution with mean `measure_rate`.
+"""
+function MCMCParameters(
+    maxdim::Int,
+    measure_rate::Float64,
+    final_time::Int,
+    subsystems::AbstractVector{Int};
+    cutoff::Float64 = eps(),
+)
+    return MCMCParameters(maxdim, cutoff, Poisson(measure_rate), final_time, subsystems)
+end
+
+
+"""
+    MCMCStatus
+Wrapper of Bool to represent the status of the MPSQtMCMC sampler.
+If `errored` is true, the sampler has encountered an error during evolution.
+It is used to keep MPSQtMCMC an immutable struct.
+"""
+mutable struct MCMCStatus
+    errored::Bool
+end
 
 """
     MPSQtMCMC(
-        state::MPS,
-        λ::Real,
-        projectors::Vector{Matrix{T}};
         id::UUID=uuid4(),
         rng::Xoshiro=Xoshiro([rand(UInt64) for _ in 1:5]...),
-        checkpoint_file::HDF5.File=default_checkpoint_file(id),
-        save_file_::IO=default_save_file(id),
-        kwargs...,
-    ) where T<:Number
-Create an MPS quantum trajectory MCMC sampler with Poisson-distributed
-measurement times with rate `λ` and local projective measurements defined
-by the set of `projectors`. Each element of `projectors` is a matrix defining a
-projector on a single site in the local basis. An internal variable `status` is used
-to check if the sampler erroed during evolution.
-
-# Arguments
-- `state::MPS`: Initial MPS state.
-- `λ::Real`: Measurement rate for the Poisson distribution of the whole state.
-- `projectors::Vector{Matrix{T}}`: Set of local projectors defining the measurements.
-# Keyword Arguments
-- `id::UUID=uuid4()`: Unique identifier for the MCMC sampler.
-- `rng::Xoshiro=Xoshiro([rand(UInt64) for _ in 1:5]...)`: Random number generator.
-- `checkpoint_file::HDF5.File=default_checkpoint_file(id)`: HDF5 file for checkpointing.
-- `save_file_::IO=default_save_file(id)`: IO stream for saving the results of the observable.
-- `kwargs...`: Additional keyword arguments for the MCMC sampler e.g. cutoff during evolution.
-"""
-@BaseMCMC_def MPS mutable struct MPSQtMCMC <: AbstractMPSQtMCMC
-    distr::DiscreteUnivariateDistribution
-    projectors::Vector{Matrix{<:Number}}
-    status::Symbol
-    evol_keys::Base.Pairs
-end
-
-function MPSQtMCMC(
-    state::MPS,
-    λ::Real,
-    projectors::Vector{Matrix{T}};
-    id::UUID = uuid4(),
-    rng::Xoshiro = Xoshiro([rand(UInt64) for _ = 1:5]...),
-    checkpoint_file::HDF5.File = default_checkpoint_file(id),
-    save_file_::IO = default_save_file(id),
-    kwargs...,
-) where {T<:Number}
-    return MPSQtMCMC(
-        id,
-        rng,
-        state,
-        checkpoint_file,
-        save_file_,
-        Poisson(λ),
-        projectors,
-        :ok,
-        kwargs,
+        state::MPS,
+        status::MCMCStatus,
     )
+Create an MPS quantum trajectory MCMC.
+"""
+struct MPSQtMCMC
+    id::UUID
+    rng::Xoshiro
+    state::MPS
+    status::MCMCStatus
+    entropy_file::String
+    density_file::String
+
+    function MPSQtMCMC(state::MPS)
+        id = uuid4()
+        rng = Xoshiro([rand(UInt64) for _ = 1:5]...)
+        status = MCMCStatus(false)
+        entropy_file = "entropy_$(id).csv"
+        density_file = "density_$(id).csv"
+        if isfile(entropy_file) || isfile(density_file)
+            @error "Chain with id $(id) already exists.\\
+            Chain will not be execudted to avoid overwriting data."
+            status.errored = true
+        end
+
+        new(id, rng, state, status, entropy_file, density_file)
+    end
 end
 
-distr(mcmc::MPSQtMCMC) = mcmc.distr
-projectors(mcmc::MPSQtMCMC) = mcmc.projectors
-evolve!(mcmc::AbstractMPSQtMCMC) = throw(MethodError(evolve!, typeof(mcmc)))
+"""
+    check_running(mcmc::MPSQtMCMC)::Bool
+Check if the MPSQtMCMC sampler is still running (i.e., has not errored).
+"""
+check_running(mcmc::MPSQtMCMC) = !mcmc.status.errored
 
 """
-    MCMC.sample(mcmc::MPSQtMCMC)::Vector{Int}
+    set_error!(mcmc::MPSQtMCMC)
+Set the MPSQtMCMC sampler status to errored.
+"""
+set_error!(mcmc::MPSQtMCMC) = (mcmc.status.errored = true)
+
+"""
+    evolve!(mcmc::MPSQtMCMC, ops::Operators, params::Parameters)::Bool
+Evolve the MPSQtMCMC sampler `mcmc` by applying the odd and even site MPOs
+from `ops` using the parameters in `params`. If the evolution is successful,
+it returns true; if an error occurs or the maximum bond dimension is reached,
+it sets the sampler status to errored and returns false.
+"""
+function evolve!(mcmc::MPSQtMCMC, ops::Operators, params::Parameters)
+    check_running(mcmc) || return false
+    cutoff = params.cutoff
+    maxdim = params.maxdim
+    for mpo in (ops.odd_sites_mpo, ops.even_sites_mpo)
+        try
+            mcmc.state[:] = apply(mpo, mcmc.state; maxdim = maxdim, cutoff = cutoff)
+        catch e
+            set_error!(mcmc)
+            @error "id $(mcmc.id) errored during evolution: $e"
+            return false
+        end
+        finishing_χ = maxlinkdim(mcmc.state)
+        if finishing_χ ≥ maxdim
+            @warn "id $(mcmc.id) reached maximum dimension $(maxdim)"
+            set_error!(mcmc)
+            return false
+        end
+    end
+    return true
+end
+
+"""
+    sample_measurement_sites(mcmc::MPSQtMCMC, params::Parameters)::Vector{Int}
 Sample measurement positions according to the distribtuion of the MPSQtMCMC
 sampler.
 """
-function MCMC.sample(mcmc::MPSQtMCMC)
-    rng_ = rng(mcmc)
-    n_measures = rand(rng_, distr(mcmc))
-    chain_length = length(mcmc.state)
-    return rand(rng_, 1:chain_length, n_measures)
+function sample_measurement_sites(mcmc::MPSQtMCMC, params::Parameters)
+    num_sites = length(siteinds(mcmc.state))
+    num_measurements = rand(mcmc.rng, params.distribution)
+    return rand(mcmc.rng, 1:num_sites, num_measurements)
 end
 
 """
-    _compute_probs_on_site(T::ITensor, projs::Vector{ITensor})::Vector{Float64}
-Compute the probabilities of obtaining each projector outcome on a given site
-for the local tensor `T` which is the orthogonal center.
+    project_on_site!(mcmc::MPSQtMCMC, isite::Int, projectors::Vector{Matrix{<:Number}}, params::Parameters)
+Perform a projective measurement on site `isite` of the MPSQtMCMC sampler `mcmc`
+using the provided `projectors`. The measurement outcome is sampled according
+to the probabilities computed from the current MPS state.
 """
-function _compute_probs_on_site(T::ITensor, projs::Vector{ITensor})
-    n = length(projs)
-    probs = zeros(n)
-    s = 0
-    for i = 1:n
-        probs[i] = real(scalar(conj(dag(T)) * replaceprime(projs[i] * T, 1 => 0)))
-        s += probs[i]
-    end
-    s ≈ 1.0 || @warn "Probabilities on site do not sum to 1.0, got $s"
-    return probs
+function project_on_site!(
+    mcmc::MPSQtMCMC,
+    isite::Int,
+    projectors::Vector{Matrix{<:Number}},
+    params::Parameters,
+)
+    probs = expect(mcmc.state, projectors; sites = isite)
+    proj_index = rand(mcmc.rng, Categorical(probs))
+    proj = projectors[proj_index]
+    prob = probs[proj_index]
+    mcmc.state = apply(proj, mcmc.state; cutoff = params.cutoff) / sqrt(prob) # ensures normalizations
+    norm(mcmc.state) ≈ 1.0 ||
+        @warn "MPS norm deviated from 1.0 after measurement at site $isite"
 end
 
 """
-    MCMC.update!(mcmc::MPSQtMCMC, samples::Vector{Int})::Int
-Perform the MPSQtMCMC update by evolving the state and applying
-projective measurements at the sampled `samples` positions.
+    compute_save_measurements(
+        mcmc::MPSQtMCMC,
+        ops::Operators,
+        params::Parameters,
+        time::Int,
+        entropy_io::IO,
+        density_io::IO
+    )
+Compute and save the measurements (Renyi entropies and quasiparticle densities)
+at the current time step `time` for the MPSQtMCMC sampler `mcmc` using the
+operators in `ops` and parameters in `params`. The results are written to the
+provided IO streams `entropy_io` and `density_io`.
 """
-function MCMC.update!(mcmc::MPSQtMCMC, samples::Vector{Int})
-    mcmc.status == :ok || return 0 # check for errors
+function compute_save_measurements(
+    mcmc::MPSQtMCMC,
+    ops::Operators,
+    params::Parameters,
+    time::Int,
+    entropy_io::IO,
+    density_io::IO,
+)
+    entropies = Renyi_entropy(mcmc.state, params.subsystems, 1)
+    densities = measure_qp(mcmc.state, ops.density_ops)
 
-    state = MCMC.state # just a shorthand
+    println(entropy_io, join([time; entropies], ","))
+    println(density_io, join([time; densities], ","))
+end
 
-    evolve!(mcmc) || return 0   # when getting false, return so that measures are not performed
-
-    cutoff = get(mcmc.evol_keys, :cutoff, 1.e-15)
-
-    for isite in samples
-        orthogonalize!(state(mcmc), isite)
-        site = siteind(only, state(mcmc), isite)
-        proj, prob = let
-            d = dim(site)
-            projs = [itensor(projectors(mcmc)[i], site', dag(site)) for i = 1:d] # projectors as ITensors
-            probs = _compute_probs_on_site(state(mcmc)[isite], projs)
-            proj_index = rand(rng(mcmc), Categorical(probs)) # sample the index according to probs
-            projs[proj_index], probs[proj_index]
+"""
+    evolve_trajectory(mcmc::MPSQtMCMC, ops::Operators, params::Parameters)
+Evolve the MPSQtMCMC sampler `mcmc` for the total time specified in `params`,
+applying projective measurements at sampled positions after each evolution step.
+"""
+function evolve_trajectory(mcmc::MPSQtMCMC, ops::Operators, params::Parameters)
+    try
+        entropy_io = open(mcmc.entropy_file, "w")
+        density_io = open(mcmc.density_file, "w")
+        compute_save_measurements(mcmc, ops, params, 0, entropy_io, density_io)
+        for time = 1:params.final_time
+            evolve!(mcmc, ops, params) || break # if an error occurs, stop evolution
+            norm(mcmc.state) ≈ 1.0 ||
+                @warn "MPS norm deviated from 1.0 after evolution at time $time"
+            samples = sample_measurement_sites(mcmc, params)
+            for isite in samples
+                project_on_site!(mcmc, isite, ops.projectors, params)
+            end
+            compute_save_measurements(mcmc, ops, params, time, entropy_io, density_io)
         end
-
-        state(mcmc) = apply(proj, state(mcmc); cutoff = cutoff) / sqrt(prob) # apply projector and normalize
+    finally
+        close(entropy_io)
+        close(density_io)
     end
-    return length(samples)
 end

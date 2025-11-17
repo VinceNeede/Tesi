@@ -1,5 +1,4 @@
 using ITensors, ITensorMPS
-using MCMC
 
 import ArgParse:
     ArgParse,
@@ -17,8 +16,7 @@ import Random:
 import UUIDs:
 	UUID,
 	uuid4
-import HDF5:
-	HDF5
 import Distributions:
     DiscreteUnivariateDistribution,
+    Categorical,
 	Poisson
