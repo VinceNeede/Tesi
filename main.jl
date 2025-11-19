@@ -72,7 +72,7 @@ function workers_scope(
     # can't use @everywhere for `using MonitoredSystems` since it would try to
     # load the package on the master process, but it would result in a 
     # toplevel expression not at top level error
-    remotecall_eval(Main, procs(), :(using MonitoredSystems, LoggingExtras))
+    remotecall_eval(Main, procs(), :(using MKL, MonitoredSystems, LoggingExtras))
 
 
     @everywhere begin
