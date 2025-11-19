@@ -79,18 +79,18 @@ function BiasedNeelState(sites, θ::Float64)::Vector{ITensor}
 end
 
 """
-    measure_singular_eigvals(psi::MPS, position::Int)
+    measure_singular_eigvals[!](psi::MPS, position::Int)
 Measure singular values (Schmidt coefficients) at a given MPS cut.
-The function orthogonalizes the `MPS` around `position`, extracts the
+The function orthogonalizes the `MPS` around `position` in place, extracts the
 tensor at that site, performs an SVD across the bond to the right, and
 returns the vector of singular values. A small warning is emitted if the
 singular values squared do not sum approximately to 1.
 """
-function measure_singular_eigvals(psi::MPS, position::Int)
+function measure_singular_eigvals!(psi::MPS, position::Int)
     chain_length = length(psi)
     (1 ≤ position < chain_length) ||
         error("Position $position is out of bounds for MPS of length $chain_length")
-    psi = orthogonalize(psi, position)
+    psi = orthogonalize!(psi, position)
     T = psi[position]
     Linds = uniqueinds(T, psi[position+1])
     _, S, _ = svd(T, Linds...)
@@ -100,8 +100,23 @@ function measure_singular_eigvals(psi::MPS, position::Int)
     return segs
 end
 
+measure_singular_eigvals(psi::MPS, position::Int) =
+    measure_singular_eigvals!(copy(psi), position)
+
+"""
+    measure_singular_eigvals[!](psi::MPS, pos::AbstractVector{Int})
+Measure singular values (Schmidt coefficients) at multiple MPS cuts.
+It is faster then `[measure_singular_eigvals!(psi, p) for p in pos]` 
+in case pos is unsorted.
+"""
+function measure_singular_eigvals!(psi::MPS, pos::AbstractVector{Int})
+    p = sortperm(pos)
+    res = measure_singular_eigvals!.(psi, pos[p])
+    return res[invperm(p)]
+end
+
 measure_singular_eigvals(psi::MPS, pos::AbstractVector{Int}) =
-    [measure_singular_eigvals(psi, p) for p in pos]
+    measure_singular_eigvals!(copy(psi), pos)
 
 """
     Renyi_entropy(singualar_evals::Vector{Float64}, n::Int; e=eps()/2)
@@ -116,19 +131,15 @@ function Renyi_entropy(singualar_evals::Vector{Float64}, n::Int; e = eps()/2)
     end
     return log(sum(prob .^ n)) / (1.0 - n)
 end
+
+# TODO: Does the Union sacrifice performance?
 """
     Renyi_entropy(mps::MPS, pos::Int, n::Int; e=eps()/2)
+    Renyi_entropy(mps::MPS, pos::AbstractVector{Int}, n::Int; e=eps()/2)
 Compute the Rényi entropy of order `n` at a given cut position `pos` in
 the MPS `mps`.
 """
-function Renyi_entropy(mps::MPS, pos::Int, n::Int; e = eps()/2)
+function Renyi_entropy(mps::MPS, pos::Union{Int, AbstractVector{Int}}, n::Int; e = eps()/2)
     sevals = measure_singular_eigvals(mps, pos)
     return Renyi_entropy(sevals, n; e = e)
 end
-
-"""
-    Renyi_entropy(mps::MPS, pos::AbstractVector{Int}, n::Int; e=eps()/2)
-Compute Rényi entropies for multiple cut positions.
-"""
-Renyi_entropy(mps::MPS, pos::AbstractVector{Int}, n::Int; e = eps()/2) =
-    [Renyi_entropy(mps, p, n; e = e) for p in pos]
