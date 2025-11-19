@@ -225,10 +225,13 @@ end
 Evolve the MPSQtMCMC sampler `mcmc` for the total time specified in `params`,
 applying projective measurements at sampled positions after each evolution step.
 """
-function evolve_trajectory(mcmc::MPSQtMCMC, ops::Operators, params::MCMCParameters)
+function evolve_trajectory(mcmc::MPSQtMCMC, ops::Operators, params::MCMCParameters; flush_every::Int=1)
     try
         entropy_io = open(mcmc.entropy_file, "w")
         density_io = open(mcmc.density_file, "w")
+        println(entropy_io, join(["time"; params.subsystems], ","))
+        println(density_io, join(["time"; 1:length(ops.density_ops)], ","))
+
         compute_save_measurements(mcmc, ops, params, 0, entropy_io, density_io)
         for time = 1:params.final_time
             evolve!(mcmc, ops, params) || break # if an error occurs, stop evolution
@@ -239,6 +242,10 @@ function evolve_trajectory(mcmc::MPSQtMCMC, ops::Operators, params::MCMCParamete
                 project_on_site!(mcmc, isite, ops.projectors, params)
             end
             compute_save_measurements(mcmc, ops, params, time, entropy_io, density_io)
+            if time % flush_every == 0
+                flush(entropy_io)
+                flush(density_io)
+            end
         end
     finally
         close(entropy_io)
