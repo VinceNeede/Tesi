@@ -254,7 +254,7 @@ function evolve_trajectory(
             end
             compute_save_measurements(mcmc, ops, params, time, entropy_io, density_io)
             if time % flush_every == 0
-                @info "Evolving trajectory $(mcmc.id) at time $time"
+                @info "Finished time step $time for trajectory $(mcmc.id)"
                 flush(entropy_io)
                 flush(density_io)
             end
