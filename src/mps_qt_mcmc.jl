@@ -26,7 +26,7 @@ struct Operators
 end
 
 """
-    Parameters(
+    MCMCParameters(
         maxdim::Int,
         cutoff::Float64,
         distribution::DiscreteUnivariateDistribution,
@@ -131,13 +131,13 @@ Set the MPSQtMCMC sampler status to errored.
 set_error!(mcmc::MPSQtMCMC) = (mcmc.status.errored = true)
 
 """
-    evolve!(mcmc::MPSQtMCMC, ops::Operators, params::Parameters)::Bool
+    evolve!(mcmc::MPSQtMCMC, ops::Operators, params::MCMCParameters)::Bool
 Evolve the MPSQtMCMC sampler `mcmc` by applying the odd and even site MPOs
 from `ops` using the parameters in `params`. If the evolution is successful,
 it returns true; if an error occurs or the maximum bond dimension is reached,
 it sets the sampler status to errored and returns false.
 """
-function evolve!(mcmc::MPSQtMCMC, ops::Operators, params::Parameters)
+function evolve!(mcmc::MPSQtMCMC, ops::Operators, params::MCMCParameters)
     check_running(mcmc) || return false
     cutoff = params.cutoff
     maxdim = params.maxdim
@@ -160,18 +160,18 @@ function evolve!(mcmc::MPSQtMCMC, ops::Operators, params::Parameters)
 end
 
 """
-    sample_measurement_sites(mcmc::MPSQtMCMC, params::Parameters)::Vector{Int}
+    sample_measurement_sites(mcmc::MPSQtMCMC, params::MCMCParameters)::Vector{Int}
 Sample measurement positions according to the distribtuion of the MPSQtMCMC
 sampler.
 """
-function sample_measurement_sites(mcmc::MPSQtMCMC, params::Parameters)
+function sample_measurement_sites(mcmc::MPSQtMCMC, params::MCMCParameters)
     num_sites = length(siteinds(mcmc.state))
     num_measurements = rand(mcmc.rng, params.distribution)
     return rand(mcmc.rng, 1:num_sites, num_measurements)
 end
 
 """
-    project_on_site!(mcmc::MPSQtMCMC, isite::Int, projectors::Vector{Matrix{<:Number}}, params::Parameters)
+    project_on_site!(mcmc::MPSQtMCMC, isite::Int, projectors::Vector{Matrix{<:Number}}, params::MCMCParameters)
 Perform a projective measurement on site `isite` of the MPSQtMCMC sampler `mcmc`
 using the provided `projectors`. The measurement outcome is sampled according
 to the probabilities computed from the current MPS state.
@@ -180,7 +180,7 @@ function project_on_site!(
     mcmc::MPSQtMCMC,
     isite::Int,
     projectors::Vector{Matrix{<:Number}},
-    params::Parameters,
+    params::MCMCParameters,
 )
     probs = expect(mcmc.state, projectors; sites = isite)
     proj_index = rand(mcmc.rng, Categorical(probs))
@@ -195,7 +195,7 @@ end
     compute_save_measurements(
         mcmc::MPSQtMCMC,
         ops::Operators,
-        params::Parameters,
+        params::MCMCParameters,
         time::Int,
         entropy_io::IO,
         density_io::IO
@@ -208,7 +208,7 @@ provided IO streams `entropy_io` and `density_io`.
 function compute_save_measurements(
     mcmc::MPSQtMCMC,
     ops::Operators,
-    params::Parameters,
+    params::MCMCParameters,
     time::Int,
     entropy_io::IO,
     density_io::IO,
@@ -221,11 +221,11 @@ function compute_save_measurements(
 end
 
 """
-    evolve_trajectory(mcmc::MPSQtMCMC, ops::Operators, params::Parameters)
+    evolve_trajectory(mcmc::MPSQtMCMC, ops::Operators, params::MCMCParameters)
 Evolve the MPSQtMCMC sampler `mcmc` for the total time specified in `params`,
 applying projective measurements at sampled positions after each evolution step.
 """
-function evolve_trajectory(mcmc::MPSQtMCMC, ops::Operators, params::Parameters)
+function evolve_trajectory(mcmc::MPSQtMCMC, ops::Operators, params::MCMCParameters)
     try
         entropy_io = open(mcmc.entropy_file, "w")
         density_io = open(mcmc.density_file, "w")
