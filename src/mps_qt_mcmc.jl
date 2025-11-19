@@ -86,13 +86,15 @@ mutable struct MCMCStatus
 end
 
 """
-    MPSQtMCMC(
-        id::UUID=uuid4(),
-        rng::Xoshiro=Xoshiro([rand(UInt64) for _ in 1:5]...),
-        state::MPS,
-        status::MCMCStatus,
-    )
-Create an MPS quantum trajectory MCMC.
+    MPSQtMCMC(state::MPS; root_folder::String=".")
+Create an MPS quantum trajectory MCMC. Each instance has a unique UUID,
+a Xoshiro random number generator, the MPS state, status, and file paths for saving
+entropy and density measurements. The UUID and the rng are initialized automatically,
+and the entropy and density files are created in the specified `root_folder` with
+unique names based on the UUID.
+
+- `state::MPS`: The initial MPS state for the sampler.
+- `root_folder::String`: The root folder where the result files will be saved.
 """
 struct MPSQtMCMC
     id::UUID
@@ -102,12 +104,12 @@ struct MPSQtMCMC
     entropy_file::String
     density_file::String
 
-    function MPSQtMCMC(state::MPS)
+    function MPSQtMCMC(state::MPS; root_folder::String=".")
         id = uuid4()
         rng = Xoshiro([rand(UInt64) for _ = 1:5]...)
         status = MCMCStatus(false)
-        entropy_file = "entropy_$(id).csv"
-        density_file = "density_$(id).csv"
+        entropy_file = joinpath(root_folder, "entropy_$(id).csv")
+        density_file = joinpath(root_folder, "density_$(id).csv")
         if isfile(entropy_file) || isfile(density_file)
             @error "Chain with id $(id) already exists.\\
             Chain will not be execudted to avoid overwriting data."
