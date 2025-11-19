@@ -139,7 +139,7 @@ end
 Compute the Rényi entropy of order `n` at a given cut position `pos` in
 the MPS `mps`.
 """
-function Renyi_entropy(mps::MPS, pos::Union{Int, AbstractVector{Int}}, n::Int; e = eps()/2)
+function Renyi_entropy(mps::MPS, pos::Union{Int,AbstractVector{Int}}, n::Int; e = eps()/2)
     sevals = measure_singular_eigvals(mps, pos)
     return Renyi_entropy(sevals, n; e = e)
 end
