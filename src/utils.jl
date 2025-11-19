@@ -64,14 +64,14 @@ Define a custom single-qubit state `ψᶿ` parameterised by `θ` as :
 ITensors.state(::StateName"ψᶿ", ::SiteType"Qubit"; θ::Float64) = [sqrt(1 - θ), sqrt(θ)]
 
 """
-    BiasedNeelState(sites, θ::Float64)::Vector{ITensor}
+    BiasedNeelState(sites::IndexSet, θ::Float64)::Vector{ITensor}
 
 Construct the initial state of a chain with alternating qubits in state
 `|ψᶿ⟩` and `|0⟩`, i.e.,
 
 `|ψ₀⟩ = |ψᶿ⟩ |0⟩ |ψᶿ⟩ |0⟩ ...`
 """
-function BiasedNeelState(sites, θ::Float64)::Vector{ITensor}
+function BiasedNeelState(sites::IndexSet, θ::Float64)::Vector{ITensor}
     return [
         isodd(n) ? ITensorMPS.state(site, "ψᶿ"; θ = θ) : ITensorMPS.state(site, "Up") for
         (n, site) in enumerate(sites)
