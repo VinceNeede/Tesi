@@ -104,7 +104,7 @@ struct MPSQtMCMC
     entropy_file::String
     density_file::String
 
-    function MPSQtMCMC(state::MPS; root_folder::String=".")
+    function MPSQtMCMC(state::MPS; root_folder::String = ".")
         id = uuid4()
         rng = Xoshiro([rand(UInt64) for _ = 1:5]...)
         status = MCMCStatus(false)
@@ -227,7 +227,12 @@ end
 Evolve the MPSQtMCMC sampler `mcmc` for the total time specified in `params`,
 applying projective measurements at sampled positions after each evolution step.
 """
-function evolve_trajectory(mcmc::MPSQtMCMC, ops::Operators, params::MCMCParameters; flush_every::Int=1)
+function evolve_trajectory(
+    mcmc::MPSQtMCMC,
+    ops::Operators,
+    params::MCMCParameters;
+    flush_every::Int = 1,
+)
     try
         entropy_io = open(mcmc.entropy_file, "w")
         density_io = open(mcmc.density_file, "w")
@@ -252,5 +257,6 @@ function evolve_trajectory(mcmc::MPSQtMCMC, ops::Operators, params::MCMCParamete
     finally
         close(entropy_io)
         close(density_io)
+        @info "Trajectory $(mcmc.id) finished"
     end
 end
