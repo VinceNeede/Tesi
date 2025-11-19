@@ -1,131 +1,138 @@
-@everywhere using MKL
-@everywhere import LinearAlgebra: LinearAlgebra, BLAS, LAPACKException
-@everywhere MKL.set_num_threads(3)
-@everywhere using MonitoredSystems, MCMC
-@everywhere import HDF5
-@everywhere import ITensorMPS: siteinds, MPS, MPO, linkdims, apply, maxlinkdim
-@everywhere import UUIDs: UUID
-
-# @everywhere LinearAlgebra.default_eigen_alg(::AbstractMatrix) = LinearAlgebra.RobustRepresentations()
-
-# const parsed_args = parse_args()
-# const θ = parsed_args["theta"]
-# const chain_length = parsed_args["chain_length"]
-# @everywhere const maxdim = $parsed_args["maxdim"]
-# const measure_rate = parsed_args["measure_rate"]
-# const final_time = parsed_args["final_time"]
-# const num_trajectories = parsed_args["num_trajectories"]
-# @everywhere const subsystems = reverse(($chain_length÷2):-2:3)
-
-"""
-	Parameters to be set everywhere before including
-	maxdim
-	to be set on master
-	chain_length
-"""
-
-function set_mpo()
-    @everywhere const global sites = $(siteinds("S=1/2", chain_length))
-	global sites
-	sleep(0.1)
-    @everywhere const global mpo_odd = $(r54_odd(sites))
-    @everywhere const global mpo_even = $(r54_even(sites))
-    @everywhere const global qps = $(qp_tensors(sites))
-    @everywhere const global subsystems = $(reverse((chain_length÷2):-2:3))
-
-end
-
-@everywhere function _try_evolve(mcmc::MPSQtMCMC, mpo::MPO; kwargs...)
-    try
-        state(mcmc)[:] = apply(mpo, state(mcmc); kwargs...)
-    catch e
-        if e isa LAPACKException && e.info > 0
-            @error "LAPACKException for id: $(id(mcmc)), saving configuration for reproduction. the info field is saved as `iteration` attribute"
-            HDF5.h5open("$(id(mcmc)).h5", "cw") do file
-                old_file = mcmc.checkpoint_file
-                mcmc.checkpoint_file = file
-                save!(mcmc, e.info)
-                mcmc.checkpoint_file = old_file
-            end
-            mcmc.status = :error
-        else
-            rethrow(e)
-        end
-    end
-end
-
-@everywhere function MonitoredSystems.evolve!(mcmc::MPSQtMCMC)
-    starting_χ = maxlinkdim(state(mcmc))
-    starting_χ ≥ maxdim && return false
-
-    _try_evolve(mcmc, mpo_odd; mcmc.evol_keys...)
-    _try_evolve(mcmc, mpo_even; mcmc.evol_keys...)
-
-    finishing_χ = maxlinkdim(state(mcmc))
-    if finishing_χ ≥ maxdim
-        @warn "id $(id(mcmc)) reached maximum dimension $(maxdim)"
-        mcmc.status = :error
-        return false
-    end
-    return true
-end
-
-@everywhere function MCMC.observables(mcmc::MPSQtMCMC)
-    mcmc.status === :error && return []
-    return [
-        x -> measure_qp(state(x), qps),
-        (x -> Renyi_entropy(state(x), p, 1) for p in subsystems)...
-    ]
-end
-
-@everywhere function main(chain_length::Int, maxdim::Int, θ::Float64, measure_rate::Float64, final_time::Int, subsystems::AbstractVector{Int}, file::HDF5.File)
-
-
-    mcmc = MPSQtMCMC(
-        MPS(BertiniState(sites, θ), 0, 2),
-        measure_rate * chain_length,
-        [[1 0; 0 0], [0 0; 0 1]];
-        checkpoint_file=file,
-        cutoff=1.e-13,
-        maxdim=maxdim,
-    )
-
-    write(save_file(mcmc), join(["N", subsystems...], ", "), "\n")
-    Base.with_logger(
-        timestamp_logger(
-            mcmc_logger(id(mcmc), 1)
-        )
-    ) do
-        try
-            run!(mcmc, final_time)
-        finally
-            close(save_file(mcmc))
-        end
-    end
-
-    if mcmc.status === :error
-        @error "id $(id(mcmc)) erroed, removing files"
-        rm("$(id(mcmc)).log")
-        rm("$(id(mcmc)).csv")
-    end
-end
-
-@everywhere using LoggingExtras
+using MonitoredSystems
+import ITensors: IndexSet
+import ITensorMPS: MPS, siteinds
+import LoggingExtras: FileLogger, with_logger
 using Glob
 
-function exe(θ::Float64, measure_rate::Float64, final_time::Int, num_trajectories::Int; workpool=CachingPool(workers()))
-    folder_name = "data_$(round(θ; sigdigits=2))_$(round(measure_rate; sigdigits=2))_$chain_length"
+"""
+    set_folder(density::Float64, per_site_prob::Float64, chain_length::Int, maxdim::Int, final_time::Int)::String
+Create a folder name based on the simulation parameters. If the folder does not
+exist, it is created. The folder name has the format:
+`data_<density>_<per_site_prob>_<chain_length>_<maxdim>_<final_time>.dat`
+- `density::Float64`: Density of quasiparticles.
+- `per_site_prob::Float64`: Probability of measurement per site.
+- `chain_length::Int`: Length of the spin chain.
+- `maxdim::Int`: Maximum bond dimension for MPS evolution.
+- `final_time::Int`: Total number of time steps for the evolution.
+Returns the folder name as a `String`.
+"""
+function set_folder(
+    density::Float64,
+    per_site_prob::Float64,
+    chain_length::Int,
+    maxdim::Int,
+    final_time::Int,
+)
+    folder_name =
+        "data_" * join(
+            Union{Float64,Int}[   # prevent int casted to float
+                round(density; sigdigits = 2);
+                round(per_site_prob; sigdigits = 2);
+                chain_length;
+                maxdim;
+                final_time
+            ],
+            "_",
+        )
+
     isdir(folder_name) || mkdir(folder_name)
-    @everywhere cd($folder_name)
-    redirect_stdio(; stdout="nohup.out", stderr="nohup.out") do
-        HDF5.h5open("checkpoint.h5", "cw") do file  # This may be the wrong place to open the file
-            pmap(_ -> main(chain_length, maxdim, θ, measure_rate, final_time, subsystems, file),
-                workpool, 1:num_trajectories;
-                on_error=e -> @error "Error" exception = (e, catch_backtrace()))
-        end
+
+    return folder_name
+end
+
+"""
+    archive_results(folder_name::String)
+Archive all `.dat` files in the specified folder into a tar file named
+`<folder_name>.tar` and remove the original `.dat` files.
+"""
+function archive_results(folder_name::String)
+    run(pipeline(`tar -cvf $(folder_name * ".tar") $(glob("*.dat", folder_name))`, devnull))
+    run(pipeline(`rm $(glob("*.dat", folder_name))`, devnull))
+    nothing
+end
+
+"""
+    workers_scope(
+        starting_mps::MPS,
+        ops::Operators,
+        params::MCMCParameters;
+        folder_name::String="."
+    )
+Define the `main` function on all workers for parallel execution and the 
+global logger. The MPS is copied at each call since it gets modified during evolution.
+Operators and parameters are serialized from the outer scope.
+Each worker logs to a separate file named `logfile_worker_<worker_id>.log` in the specified folder.
+"""
+function workers_scope(
+    starting_mps::MPS,
+    ops::Operators,
+    params::MCMCParameters;
+    folder_name::String = ".",
+)
+    # can't use @everywhere for `using MonitoredSystems` since it would try to
+    # load the package on the master process, but it would result in a 
+    # toplevel expression not at top level error
+    remotecall_eval(Main, procs(), :(using MonitoredSystems, LoggingExtras))
+
+
+    @everywhere begin
+        logger = timestamp_logger(
+            FileLogger(
+                joinpath($folder_name, "logfile_worker_$(myid()).log");
+                append = true,
+            ),
+        )
+
+        global_logger(logger)
+
+        main(_) = evolve_trajectory(
+            MPSQtMCMC(copy($starting_mps); root_folder = $folder_name),
+            $ops,
+            $params,
+        )
+
     end
-    @info "All tasks finished" θ measure_rate final_time num_trajectories length(glob("*.csv")) 
-    @everywhere cd("../")
-    run(pipeline(`tar -rvf $(folder_name * ".tar") $(glob("*.csv", folder_name))`, devnull))
-    run(`rm $(glob("*.csv", folder_name))`)
+end
+
+"""
+    execute(
+        density::Float64,
+        per_site_prob_measure::Float64,
+        chain_length::Int,
+        maxdim::Int,
+        final_time::Int,
+        subsystems::AbstractVector{Int},
+        num_trajectories::Int,
+    )
+"""
+function execute(
+    density::Float64,
+    per_site_prob_measure::Float64,
+    chain_length::Int,
+    maxdim::Int,
+    final_time::Int,
+    subsystems::AbstractVector{Int},
+    num_trajectories::Int,
+)
+    sites = siteinds("S=1/2", chain_length)
+    projs = [[1 0; 0 0], [0 0; 0 1]]
+    ops = Operators(sites, projs)
+    params =
+        MCMCParameters(maxdim, per_site_prob_measure * chain_length, final_time, subsystems)
+    folder_name =
+        set_folder(density, per_site_prob_measure, chain_length, maxdim, final_time)
+
+    starting_mps = BiasedNeelState(sites, density)
+
+    workers_scope(starting_mps, ops, params; folder_name = folder_name)
+
+    pmap(
+        main,
+        1:num_trajectories;
+        on_error = (e -> @error "Error" exception = (e, catch_backtrace())),
+    )
+    @info "All tasks finished" density per_site_prob_measure chain_length maxdim final_time num_trajectories "number of trajectories in folder" =
+        length(glob("*.dat", folder_name))
+
+    archive_results(folder_name)
 end

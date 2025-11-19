@@ -13,7 +13,7 @@ struct Operators
     odd_sites_mpo::MPO
     even_sites_mpo::MPO
     projectors::Vector{Matrix{<:Number}}
-    density_ops::Vector{Array{Float64}}
+    density_ops::Vector{ITensor}
     function Operators(
         sites::ITensors.Indices,
         projectors::Vector{Matrix{T}},
@@ -108,8 +108,8 @@ struct MPSQtMCMC
         id = uuid4()
         rng = Xoshiro([rand(UInt64) for _ = 1:5]...)
         status = MCMCStatus(false)
-        entropy_file = joinpath(root_folder, "entropy_$(id).csv")
-        density_file = joinpath(root_folder, "density_$(id).csv")
+        entropy_file = joinpath(root_folder, "entropy_$(id).dat")
+        density_file = joinpath(root_folder, "density_$(id).dat")
         if isfile(entropy_file) || isfile(density_file)
             @error "Chain with id $(id) already exists.\\
             Chain will not be execudted to avoid overwriting data."
@@ -188,7 +188,9 @@ function project_on_site!(
     proj_index = rand(mcmc.rng, Categorical(probs))
     proj = projectors[proj_index]
     prob = probs[proj_index]
-    mcmc.state = apply(proj, mcmc.state; cutoff = params.cutoff) / sqrt(prob) # ensures normalizations
+    site = siteinds(mcmc.state)[isite]
+    proj = itensor(proj, site', dag(site))
+    mcmc.state[:] = apply(proj, mcmc.state; cutoff = params.cutoff) / sqrt(prob) # ensures normalizations
     norm(mcmc.state) ≈ 1.0 ||
         @warn "MPS norm deviated from 1.0 after measurement at site $isite"
 end
@@ -233,12 +235,14 @@ function evolve_trajectory(
     params::MCMCParameters;
     flush_every::Int = 1,
 )
+    local entropy_io, density_io
     try
         entropy_io = open(mcmc.entropy_file, "w")
         density_io = open(mcmc.density_file, "w")
         println(entropy_io, join(["time"; params.subsystems], ","))
         println(density_io, join(["time"; 1:length(ops.density_ops)], ","))
 
+        @info "Starting trajectory $(mcmc.id)"
         compute_save_measurements(mcmc, ops, params, 0, entropy_io, density_io)
         for time = 1:params.final_time
             evolve!(mcmc, ops, params) || break # if an error occurs, stop evolution
@@ -250,6 +254,7 @@ function evolve_trajectory(
             end
             compute_save_measurements(mcmc, ops, params, time, entropy_io, density_io)
             if time % flush_every == 0
+                @info "Evolving trajectory $(mcmc.id) at time $time"
                 flush(entropy_io)
                 flush(density_io)
             end

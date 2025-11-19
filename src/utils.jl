@@ -64,18 +64,18 @@ Define a custom single-qubit state `ψᶿ` parameterised by `θ` as :
 ITensors.state(::StateName"ψᶿ", ::SiteType"Qubit"; θ::Float64) = [sqrt(1 - θ), sqrt(θ)]
 
 """
-    BiasedNeelState(sites::IndexSet, θ::Float64)::Vector{ITensor}
+    BiasedNeelState(sites::IndexSet, θ::Float64)::MPS
 
 Construct the initial state of a chain with alternating qubits in state
 `|ψᶿ⟩` and `|0⟩`, i.e.,
 
 `|ψ₀⟩ = |ψᶿ⟩ |0⟩ |ψᶿ⟩ |0⟩ ...`
 """
-function BiasedNeelState(sites::IndexSet, θ::Float64)::Vector{ITensor}
-    return [
+function BiasedNeelState(sites::IndexSet, θ::Float64)::MPS
+    return MPS([
         isodd(n) ? ITensorMPS.state(site, "ψᶿ"; θ = θ) : ITensorMPS.state(site, "Up") for
         (n, site) in enumerate(sites)
-    ]
+    ])
 end
 
 """
@@ -111,7 +111,7 @@ in case pos is unsorted.
 """
 function measure_singular_eigvals!(psi::MPS, pos::AbstractVector{Int})
     p = sortperm(pos)
-    res = measure_singular_eigvals!.(psi, pos[p])
+    res = [measure_singular_eigvals!(psi, pos[i]) for i in p]
     return res[invperm(p)]
 end
 
@@ -132,14 +132,18 @@ function Renyi_entropy(singualar_evals::Vector{Float64}, n::Int; e = eps()/2)
     return log(sum(prob .^ n)) / (1.0 - n)
 end
 
-# TODO: Does the Union sacrifice performance?
 """
     Renyi_entropy(mps::MPS, pos::Int, n::Int; e=eps()/2)
     Renyi_entropy(mps::MPS, pos::AbstractVector{Int}, n::Int; e=eps()/2)
 Compute the Rényi entropy of order `n` at a given cut position `pos` in
 the MPS `mps`.
 """
-function Renyi_entropy(mps::MPS, pos::Union{Int,AbstractVector{Int}}, n::Int; e = eps()/2)
-    sevals = measure_singular_eigvals(mps, pos)
-    return Renyi_entropy(sevals, n; e = e)
+function Renyi_entropy(mps::MPS, pos::AbstractVector{Int}, n::Int; e = eps()/2)
+    all_sevals = measure_singular_eigvals(mps, pos)
+    return [Renyi_entropy(sevals, n; e = e) for sevals in all_sevals]
+end
+
+function Renyi_entropy(mps::MPS, pos::Int, n::Int; e = eps()/2)
+    all_sevals = measure_singular_eigvals(mps, pos)
+    return [Renyi_entropy(sevals, n; e = e) for sevals in all_sevals]
 end

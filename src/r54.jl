@@ -70,7 +70,7 @@ function r54_even(sites::Vector{Index{Int64}})
     mpo = MPO(sites)
     links = [Index(2, tags = "Link, k=$i") for i = 1:(chain_length-1)]
 
-    mpo[1] = ITensor(CX, sites[1]', sites[1], links[1])
+    mpo[1] = delta(sites[1]', sites[1], links[1])
     for i = 2:(chain_length-1)
         if iseven(i)
             mpo[i] = ITensor(base_R54, sites[i]', sites[i], links[i-1], links[i])

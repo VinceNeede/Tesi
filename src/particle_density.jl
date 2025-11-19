@@ -50,12 +50,12 @@ function qp_tensors(sites::ITensors.Indices)
 end
 
 """
-	measure_qp(ψ::MPS, tensors::Vector{ITensor})::Float64
-Measure the quasiparticle density of the MPS `ψ` using the provided
+	measure_qp(ψ::MPS, tensors::Vector{ITensor})::Vector{Float64}
+Measure the quasiparticle density per site of the MPS `ψ` using the provided
 `tensors` obtained from `qp_tensors`.
 """
 function measure_qp(ψ::MPS, tensors::Vector{ITensor})
-    s = 0
+    res = Vector{Float64}(undef, length(tensors))
     for (i, tensor) in enumerate(tensors)
         ψ = orthogonalize(ψ, i)
         T = let
@@ -67,8 +67,8 @@ function measure_qp(ψ::MPS, tensors::Vector{ITensor})
                 ψ[i-1] * ψ[i] * ψ[i+1]
             end
         end
-        s += scalar(T * apply(tensor, T))
+        res[i] = real(scalar(T * apply(tensor, T)))
     end
 
-    return real(s)
+    return res
 end
