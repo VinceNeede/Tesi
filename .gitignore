@@ -3,5 +3,6 @@
 *.out
 *.png
 *.csv
+*.dat
 *.tar
 Manifest.toml
