@@ -56,26 +56,33 @@ end
         starting_mps::MPS,
         ops::Operators,
         params::MCMCParameters;
-        folder_name::String="."
+        folder_name::String=".";
+        flush_every::Int=1,
+        nthreads::Int=1,
     )
 Define the `main` function on all workers for parallel execution and the 
 global logger. The MPS is copied at each call since it gets modified during evolution.
 Operators and parameters are serialized from the outer scope.
 Each worker logs to a separate file named `logfile_worker_<worker_id>.log` in the specified folder.
+- flush_every::Int: Number of time steps between flushing results to disk.
+- nthreads::Int: Number of threads to use in each worker.
 """
 function workers_scope(
     starting_mps::MPS,
     ops::Operators,
     params::MCMCParameters;
     folder_name::String = ".",
+    flush_every::Int = 1,
+    nthreads::Int = 1,
 )
     # can't use @everywhere for `using MonitoredSystems` since it would try to
     # load the package on the master process, but it would result in a 
     # toplevel expression not at top level error
     remotecall_eval(Main, procs(), :(using MKL, MonitoredSystems, LoggingExtras))
 
-
     @everywhere begin
+        MKL.set_num_threads($nthreads)
+
         logger = timestamp_logger(
             FileLogger(
                 joinpath($folder_name, "logfile_worker_$(myid()).log");
@@ -88,7 +95,8 @@ function workers_scope(
         main(_) = evolve_trajectory(
             MPSQtMCMC(copy($starting_mps); root_folder = $folder_name),
             $ops,
-            $params,
+            $params;
+            flush_every=$flush_every
         )
 
     end
@@ -112,7 +120,9 @@ function execute(
     maxdim::Int,
     final_time::Int,
     subsystems::AbstractVector{Int},
-    num_trajectories::Int,
+    num_trajectories::Int;
+    flush_every::Int=1,
+    nthreads::Int=1,
 )
     sites = siteinds("S=1/2", chain_length)
     projs = [[1 0; 0 0], [0 0; 0 1]]
@@ -124,7 +134,7 @@ function execute(
 
     starting_mps = BiasedNeelState(sites, density)
 
-    workers_scope(starting_mps, ops, params; folder_name = folder_name)
+    workers_scope(starting_mps, ops, params; folder_name = folder_name, flush_every=flush_every, nthreads=nthreads)
 
     pmap(
         main,
