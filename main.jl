@@ -8,9 +8,10 @@ using Glob
     set_folder(density::Float64, per_site_prob::Float64, chain_length::Int, maxdim::Int, final_time::Int)::String
 Create a folder name based on the simulation parameters. If the folder does not
 exist, it is created. The folder name has the format:
-`data_<density>_<per_site_prob>_<chain_length>_<maxdim>_<final_time>.dat`
+`data_<density>_<per_site_prob>_<measure_op>_<chain_length>_<maxdim>_<final_time>`
 - `density::Float64`: Density of quasiparticles.
 - `per_site_prob::Float64`: Probability of measurement per site.
+- `measure_op::String`: Measurement operator ("X" or "Z").
 - `chain_length::Int`: Length of the spin chain.
 - `maxdim::Int`: Maximum bond dimension for MPS evolution.
 - `final_time::Int`: Total number of time steps for the evolution.
@@ -19,15 +20,21 @@ Returns the folder name as a `String`.
 function set_folder(
     density::Float64,
     per_site_prob::Float64,
+    measure_op::String,
     chain_length::Int,
     maxdim::Int,
     final_time::Int,
 )
+    # if there are only floats and integers, Julia may cast integers to floats when
+    # constructing the folder name, so we explicitly set the vector type as
+    # Union{Float64, Int}
+    # In this case measure_op is a String, so no risk of casting
     folder_name =
         "data_" * join(
-            Union{Float64,Int}[   # prevent int casted to float
+            [
                 round(density; sigdigits = 2);
                 round(per_site_prob; sigdigits = 2);
+                measure_op;
                 chain_length;
                 maxdim;
                 final_time
@@ -102,20 +109,46 @@ function workers_scope(
     end
 end
 
+function get_projectors(measure_op::String)
+    if measure_op == "X"
+        projs = [[1 1; 1 1] / 2, [1 -1; -1 1] / 2]
+    elseif measure_op == "Z"
+        projs = [[1 0; 0 0], [0 0; 0 1]]
+    else
+        error("Unknown measurement operator: $measure_op")
+    end
+    return projs
+end
+
 """
     execute(
         density::Float64,
         per_site_prob_measure::Float64,
+        measure_op::String,
         chain_length::Int,
         maxdim::Int,
         final_time::Int,
         subsystems::AbstractVector{Int},
-        num_trajectories::Int,
+        num_trajectories::Int;
+        flush_every::Int=1,
+        nthreads::Int=1,
     )
+Execute quantum trajectory simulations with the specified parameters.
+- `density::Float64`: Density of quasiparticles.
+- `per_site_prob_measure::Float64`: Probability of measurement per site.
+- `measure_op::String`: Measurement operator ("X" or "Z").
+- `chain_length::Int`: Length of the spin chain.
+- `maxdim::Int`: Maximum bond dimension for MPS evolution.
+- `final_time::Int`: Total number of time steps for the evolution.
+- `subsystems::AbstractVector{Int}`: Subsystems to monitor.
+- `num_trajectories::Int`: Number of quantum trajectories to simulate.
+- `flush_every::Int`: Number of time steps between flushing results to disk.
+- `nthreads::Int`: Number of threads to use in each worker.
 """
 function execute(
     density::Float64,
     per_site_prob_measure::Float64,
+    measure_op::String,
     chain_length::Int,
     maxdim::Int,
     final_time::Int,
@@ -125,12 +158,12 @@ function execute(
     nthreads::Int=1,
 )
     sites = siteinds("S=1/2", chain_length)
-    projs = [[1 0; 0 0], [0 0; 0 1]]
+    projs = get_projectors(measure_op)
     ops = Operators(sites, projs)
     params =
         MCMCParameters(maxdim, per_site_prob_measure * chain_length, final_time, subsystems)
     folder_name =
-        set_folder(density, per_site_prob_measure, chain_length, maxdim, final_time)
+        set_folder(density, per_site_prob_measure, measure_op, chain_length, maxdim, final_time)
 
     starting_mps = BiasedNeelState(sites, density)
 
