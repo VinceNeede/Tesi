@@ -30,23 +30,20 @@ end
 
 s(θ) = -θ*log(θ)-(1-θ)*log(1-θ)
 v(θ) = 2 / (1 + 2θ)
-γ = 0.08
 
 function execute_plot()
-    p = plot(xlabel="v(θ) γ t", ylabel = "γ S / s(θ)")
-    θs = vcat(0.001:0.001:0.01, 0.02:0.01:0.1)
-    colors = cgrad(:matter, length(θs), categorical=true)
-    for (i, θ) in enumerate(θs)
-        entropies_df, densities_df = retrieve_results("data_$(join(round.([θ, γ], sigdigits=2), "_"))_Z_100_2048_30")
-        entropies_matrix = cat(Matrix.(entropies_df)...; dims=3)
-        
-        errorline!(p,
-            v(θ) * γ * entropies_matrix[:, 1, 1], 
-            γ / s(θ) * entropies_matrix[:, 2, :], 
-            errortype=:sem, 
-            label="θ=$(θ)",
-            groupcolor = colors[i],
-            )
+    θ = 0.1
+    
+    p = plot(xlabel="t", ylabel = "γ S")
+    for γ in [0.8, 0.6]
+            entropies_df, densities_df = retrieve_results("data_$(join(round.([θ, γ], sigdigits=2), "_"))_X_100_2048_30")
+            entropies_matrix = cat(Matrix.(entropies_df)...; dims=3)
+            errorline!(p,
+                entropies_matrix[:, 1, 1], 
+                entropies_matrix[:, 2, :], 
+                errortype=:sem, 
+                label="γ=$(γ)",
+                )
     end
     return p
 end
