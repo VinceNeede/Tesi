@@ -3,6 +3,7 @@ export
     parse_args,
     timestamp_logger,
     BiasedNeelState,
+    CentralQuasiParticle,
     Renyi_entropy,
     measure_singular_eigvals,
     # r54.jl

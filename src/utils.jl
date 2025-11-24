@@ -79,6 +79,25 @@ function BiasedNeelState(sites::IndexSet, θ::Float64)::MPS
 end
 
 """
+    CentralQuasiParticle(sites::IndexSet)::MPS
+Construct an initial MPS state with a quasi-particle localized at the center
+of the chain, in a superposition of moving left and right.
+"""
+function CentralQuasiParticle(sites::IndexSet)::MPS
+    center = length(sites) ÷ 2
+    qp_moving_right = MPS(
+        sites,
+        [n == center - 2 || n == center - 1 ? "Dn" : "Up" for n in 1:length(sites)]
+    )
+    qp_moving_left = MPS(
+        sites,
+        [n == center + 1 || n == center + 2 ? "Dn" : "Up" for n in 1:length(sites)]
+    )
+    psi = normalize(qp_moving_right + qp_moving_left)
+    return orthogonalize(psi, 1)
+end
+
+"""
     measure_singular_eigvals[!](psi::MPS, position::Int)
 Measure singular values (Schmidt coefficients) at a given MPS cut.
 The function orthogonalizes the `MPS` around `position` in place, extracts the
