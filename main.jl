@@ -30,7 +30,7 @@ function set_folder(
     # Union{Float64, Int}
     # In this case measure_op is a String, so no risk of casting
     folder_name =
-        "data_" * join(
+        "qp_" * join(
             [
                 round(density; sigdigits = 2);
                 round(per_site_prob; sigdigits = 2);
@@ -157,6 +157,10 @@ function execute(
     flush_every::Int=1,
     nthreads::Int=1,
 )
+    if density != 0
+        @warn "for quasiparticle, density is ignored and fixed to 0"
+    end
+    density = 0.0
     sites = siteinds("S=1/2", chain_length)
     projs = get_projectors(measure_op)
     ops = Operators(sites, projs)
@@ -165,7 +169,7 @@ function execute(
     folder_name =
         set_folder(density, per_site_prob_measure, measure_op, chain_length, maxdim, final_time)
 
-    starting_mps = BiasedNeelState(sites, density)
+    starting_mps = CentralQuasiParticle(sites)
 
     workers_scope(starting_mps, ops, params; folder_name = folder_name, flush_every=flush_every, nthreads=nthreads)
 

@@ -32,17 +32,17 @@ s(θ) = -θ*log(θ)-(1-θ)*log(1-θ)
 v(θ) = 2 / (1 + 2θ)
 
 function execute_plot()
-    θ = 0.1
-    
     p = plot(xlabel="t", ylabel = "γ S")
-    for γ in [0.8, 0.6]
-            entropies_df, densities_df = retrieve_results("data_$(join(round.([θ, γ], sigdigits=2), "_"))_X_100_2048_30")
+    for γ in [0.01]
+            entropies_df, densities_df = retrieve_results("qp_0.0_$(round(γ, sigdigits=2))_X_100_2048_8")
             entropies_matrix = cat(Matrix.(entropies_df)...; dims=3)
             errorline!(p,
                 entropies_matrix[:, 1, 1], 
                 entropies_matrix[:, 2, :], 
-                errortype=:sem, 
+                # errortype=:sem, 
                 label="γ=$(γ)",
+                errorstyle=:plume,
+                # numbersecondarylines=30
                 )
     end
     return p
