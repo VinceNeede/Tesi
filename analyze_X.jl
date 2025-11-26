@@ -1,4 +1,4 @@
-using CSV, DataFrames, Statistics, Plots
+using CSV, DataFrames, Statistics, Plots, StatsPlots
 
 
 """
@@ -32,16 +32,17 @@ s(θ) = -θ*log(θ)-(1-θ)*log(1-θ)
 v(θ) = 2 / (1 + 2θ)
 
 function execute_plot()
-    p = plot(xlabel="t", ylabel = "γ S")
-    for γ in [0.01]
-            entropies_df, densities_df = retrieve_results("qp_0.0_$(round(γ, sigdigits=2))_X_100_2048_8")
+    p = plot(xlabel="t", ylabel = "S")
+    for γ in [0.6, 0.8]
+            entropies_df, densities_df = retrieve_results("data_0.1_$(round(γ, sigdigits=2))_X_100_2048_30")
             entropies_matrix = cat(Matrix.(entropies_df)...; dims=3)
+            entropies_matrix = permutedims(entropies_matrix, (1,3,2))
             errorline!(p,
-                entropies_matrix[:, 1, 1], 
-                entropies_matrix[:, 2, :], 
+                entropies_matrix[:, 1, 1],
+                entropies_matrix[:, :, end],
+                label = "γ = $γ"
                 # errortype=:sem, 
-                label="γ=$(γ)",
-                errorstyle=:plume,
+                # errorstyle=:plume,
                 # numbersecondarylines=30
                 )
     end
