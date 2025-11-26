@@ -2,6 +2,7 @@ using MonitoredSystems
 import ITensors: IndexSet
 import ITensorMPS: MPS, siteinds
 import LoggingExtras: FileLogger, with_logger
+import Distributions: Bernoulli
 using Glob
 
 """
@@ -30,7 +31,7 @@ function set_folder(
     # Union{Float64, Int}
     # In this case measure_op is a String, so no risk of casting
     folder_name =
-        "qp_" * join(
+        "qp_bernoulli_" * join(
             [
                 round(density; sigdigits = 2);
                 round(per_site_prob; sigdigits = 2);
@@ -60,7 +61,7 @@ end
 
 """
     workers_scope(
-        starting_mps::MPS,
+        sites::ITensors.IndexSet,
         ops::Operators,
         params::MCMCParameters;
         folder_name::String=".";
@@ -68,14 +69,15 @@ end
         nthreads::Int=1,
     )
 Define the `main` function on all workers for parallel execution and the 
-global logger. The MPS is copied at each call since it gets modified during evolution.
+global logger. The MPS is created at each call as a single quasiparticle 
+in a random position.
 Operators and parameters are serialized from the outer scope.
 Each worker logs to a separate file named `logfile_worker_<worker_id>.log` in the specified folder.
 - flush_every::Int: Number of time steps between flushing results to disk.
 - nthreads::Int: Number of threads to use in each worker.
 """
 function workers_scope(
-    starting_mps::MPS,
+    sites::IndexSet,
     ops::Operators,
     params::MCMCParameters;
     folder_name::String = ".",
@@ -87,6 +89,7 @@ function workers_scope(
     # toplevel expression not at top level error
     remotecall_eval(Main, procs(), :(using MKL, MonitoredSystems, LoggingExtras))
 
+    chain_length = length(sites)
     @everywhere begin
         MKL.set_num_threads($nthreads)
 
@@ -100,7 +103,10 @@ function workers_scope(
         global_logger(logger)
 
         main(_) = evolve_trajectory(
-            MPSQtMCMC(copy($starting_mps); root_folder = $folder_name),
+            MPSQtMCMC(
+                CentralQuasiParticle($sites; center=rand(3:$chain_length-2));
+                root_folder = $folder_name
+            ),
             $ops,
             $params;
             flush_every=$flush_every
@@ -165,13 +171,11 @@ function execute(
     projs = get_projectors(measure_op)
     ops = Operators(sites, projs)
     params =
-        MCMCParameters(maxdim, per_site_prob_measure * chain_length, final_time, subsystems)
+        MCMCParameters(maxdim, eps(), Bernoulli(1.0), final_time, subsystems)
     folder_name =
         set_folder(density, per_site_prob_measure, measure_op, chain_length, maxdim, final_time)
 
-    starting_mps = CentralQuasiParticle(sites)
-
-    workers_scope(starting_mps, ops, params; folder_name = folder_name, flush_every=flush_every, nthreads=nthreads)
+    workers_scope(sites, ops, params; folder_name = folder_name, flush_every=flush_every, nthreads=nthreads)
 
     pmap(
         main,

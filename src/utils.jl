@@ -79,12 +79,11 @@ function BiasedNeelState(sites::IndexSet, θ::Float64)::MPS
 end
 
 """
-    CentralQuasiParticle(sites::IndexSet)::MPS
-Construct an initial MPS state with a quasi-particle localized at the center
-of the chain, in a superposition of moving left and right.
+    CentralQuasiParticle(sites::IndexSet; center=length(sites) ÷ 2)::MPS
+Construct an initial MPS state with a quasi-particle localized at position center,
+in a superposition of moving left and right.
 """
-function CentralQuasiParticle(sites::IndexSet)::MPS
-    center = length(sites) ÷ 2
+function CentralQuasiParticle(sites::IndexSet; center=length(sites) ÷ 2)::MPS
     qp_moving_right = MPS(
         sites,
         [n == center - 2 || n == center - 1 ? "Dn" : "Up" for n in 1:length(sites)]
