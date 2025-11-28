@@ -264,4 +264,9 @@ function evolve_trajectory(
         close(density_io)
         @info "Trajectory $(mcmc.id) finished"
     end
+    if !check_running(mcmc)
+        @warn "Trajectory $(mcmc.id) did not complete successfully, deleting result files."
+        rm(mcmc.entropy_file)
+        rm(mcmc.density_file)
+    end
 end
