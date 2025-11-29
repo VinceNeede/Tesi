@@ -1,4 +1,4 @@
-using CSV, DataFrames, Statistics, Plots
+using CSV, DataFrames, Statistics, Plots, StatsPlots
 
 
 """
@@ -31,18 +31,31 @@ end
 s(θ) = -θ*log(θ)-(1-θ)*log(1-θ)
 v(θ) = 2 / (1 + 2θ)
 
+line_type = Dict(
+    0.1 => :solid,
+    0.5 => :dash,
+)
+
+color_type = Dict(
+    0.8 => :red,
+    0.7 => :blue,
+    0.6 => :green,
+    0.5 => :orange,
+)
+
 function execute_plot()
-    θ = 0.1
-    
-    p = plot(xlabel="t", ylabel = "γ S")
-    for γ in [0.8, 0.6]
-            entropies_df, densities_df = retrieve_results("data_$(join(round.([θ, γ], sigdigits=2), "_"))_X_100_2048_30")
+    L = 24
+    p = plot(xlabel="γt", ylabel = "γ²S")
+    for (θ, χ) in zip([0.1, 0.5], [2048, 3072]), γ in [0.8, 0.7, 0.6, 0.5]
+            entropies_df, densities_df = retrieve_results("data_$(join(round.([θ, γ], sigdigits=2), "_"))_X_$(L)_$(χ)_15")
             entropies_matrix = cat(Matrix.(entropies_df)...; dims=3)
             errorline!(p,
                 entropies_matrix[:, 1, 1], 
                 entropies_matrix[:, 2, :], 
                 errortype=:sem, 
-                label="γ=$(γ)",
+                label="θ = $(θ), γ=$(γ)",
+                linestyle=line_type[θ],
+                groupcolor=color_type[γ],
                 )
     end
     return p
