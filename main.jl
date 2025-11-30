@@ -24,6 +24,7 @@ function set_folder(
     chain_length::Int,
     maxdim::Int,
     final_time::Int,
+    range::UnitRange{Int},
 )
     # if there are only floats and integers, Julia may cast integers to floats when
     # constructing the folder name, so we explicitly set the vector type as
@@ -37,7 +38,9 @@ function set_folder(
                 measure_op;
                 chain_length;
                 maxdim;
-                final_time
+                final_time;
+                first(range);
+                last(range);
             ],
             "_",
         )
@@ -152,6 +155,7 @@ function execute(
     chain_length::Int,
     maxdim::Int,
     final_time::Int,
+    range::UnitRange{Int},
     subsystems::AbstractVector{Int},
     num_trajectories::Int;
     flush_every::Int=1,
@@ -163,9 +167,9 @@ function execute(
     params =
         MCMCParameters(maxdim, per_site_prob_measure * chain_length, final_time, subsystems)
     folder_name =
-        set_folder(density, per_site_prob_measure, measure_op, chain_length, maxdim, final_time)
+        set_folder(density, per_site_prob_measure, measure_op, chain_length, maxdim, final_time, range)
 
-    starting_mps = BiasedNeelState(sites, density)
+    starting_mps = LimitedBiasedNeelState(sites, density, range)
 
     workers_scope(starting_mps, ops, params; folder_name = folder_name, flush_every=flush_every, nthreads=nthreads)
 
