@@ -72,10 +72,7 @@ Construct the initial state of a chain with alternating qubits in state
 `|ψ₀⟩ = |ψᶿ⟩ |0⟩ |ψᶿ⟩ |0⟩ ...`
 """
 function BiasedNeelState(sites::IndexSet, θ::Float64)::MPS
-    return MPS([
-        isodd(n) ? ITensorMPS.state(site, "ψᶿ"; θ = θ) : ITensorMPS.state(site, "Up") for
-        (n, site) in enumerate(sites)
-    ])
+    return LimitedBiasedNeelState(sites, θ, 1:length(sites))
 end
 
 """
