@@ -246,8 +246,9 @@ function evolve_trajectory(
         compute_save_measurements(mcmc, ops, params, 0, entropy_io, density_io)
         for time = 1:params.final_time
             evolve!(mcmc, ops, params) || break # if an error occurs, stop evolution
-            norm(mcmc.state) ≈ 1.0 ||
-                @warn "MPS norm deviated from 1.0 after evolution at time $time"
+            norm_after_evolve = norm(mcmc.state)
+            norm_after_evolve ≈ 1.0 ||
+                @warn "MPS norm deviated from 1.0 after evolution at time $time" norm_after_evolve
             samples = sample_measurement_sites(mcmc, params)
             for isite in samples
                 project_on_site!(mcmc, isite, ops.projectors, params)
