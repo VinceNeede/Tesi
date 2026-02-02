@@ -5,11 +5,10 @@ import LoggingExtras: FileLogger, with_logger
 using Glob
 
 """
-    set_folder(density::Float64, per_site_prob::Float64, chain_length::Int, maxdim::Int, final_time::Int)::String
+    set_folder(per_site_prob::Float64, chain_length::Int, maxdim::Int, final_time::Int)::String
 Create a folder name based on the simulation parameters. If the folder does not
 exist, it is created. The folder name has the format:
-`data_<density>_<per_site_prob>_<measure_op>_<chain_length>_<maxdim>_<final_time>`
-- `density::Float64`: Density of quasiparticles.
+`qp_<density>_<per_site_prob>_<measure_op>_<chain_length>_<maxdim>_<final_time>`
 - `per_site_prob::Float64`: Probability of measurement per site.
 - `measure_op::String`: Measurement operator ("X" or "Z").
 - `chain_length::Int`: Length of the spin chain.
@@ -18,7 +17,6 @@ exist, it is created. The folder name has the format:
 Returns the folder name as a `String`.
 """
 function set_folder(
-    density::Float64,
     per_site_prob::Float64,
     measure_op::String,
     chain_length::Int,
@@ -30,9 +28,8 @@ function set_folder(
     # Union{Float64, Int}
     # In this case measure_op is a String, so no risk of casting
     folder_name =
-        "data_" * join(
+        "qp_" * join(
             [
-                round(density; sigdigits = 2);
                 round(per_site_prob; sigdigits = 2);
                 measure_op;
                 chain_length;
@@ -122,7 +119,6 @@ end
 
 """
     execute(
-        density::Float64,
         per_site_prob_measure::Float64,
         measure_op::String,
         chain_length::Int,
@@ -134,7 +130,6 @@ end
         nthreads::Int=1,
     )
 Execute quantum trajectory simulations with the specified parameters.
-- `density::Float64`: Density of quasiparticles.
 - `per_site_prob_measure::Float64`: Probability of measurement per site.
 - `measure_op::String`: Measurement operator ("X" or "Z").
 - `chain_length::Int`: Length of the spin chain.
@@ -146,7 +141,6 @@ Execute quantum trajectory simulations with the specified parameters.
 - `nthreads::Int`: Number of threads to use in each worker.
 """
 function execute(
-    density::Float64,
     per_site_prob_measure::Float64,
     measure_op::String,
     chain_length::Int,
@@ -163,9 +157,9 @@ function execute(
     params =
         MCMCParameters(maxdim, per_site_prob_measure * chain_length, final_time, subsystems)
     folder_name =
-        set_folder(density, per_site_prob_measure, measure_op, chain_length, maxdim, final_time)
+        set_folder(per_site_prob_measure, measure_op, chain_length, maxdim, final_time)
 
-    starting_mps = BiasedNeelState(sites, density)
+    starting_mps = CentralQuasiParticle(sites)
 
     workers_scope(starting_mps, ops, params; folder_name = folder_name, flush_every=flush_every, nthreads=nthreads)
 
@@ -174,7 +168,7 @@ function execute(
         1:num_trajectories;
         on_error = (e -> @error "Error" exception = (e, catch_backtrace())),
     )
-    @info "All tasks finished" density per_site_prob_measure chain_length maxdim final_time num_trajectories "number of trajectories in folder" =
+    @info "All tasks finished" per_site_prob_measure chain_length maxdim final_time num_trajectories "number of trajectories in folder" =
         length(glob("*.dat", folder_name))
 
     archive_results(folder_name)
