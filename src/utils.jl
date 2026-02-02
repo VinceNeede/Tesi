@@ -72,29 +72,18 @@ Construct the initial state of a chain with alternating qubits in state
 `|ψ₀⟩ = |ψᶿ⟩ |0⟩ |ψᶿ⟩ |0⟩ ...`
 """
 function BiasedNeelState(sites::IndexSet, θ::Float64)::MPS
-    return LimitedBiasedNeelState(sites, θ, 1:length(sites))
-end
-
-"""
-    LimitedBiasedNeelState(sites::IndexSet, θ::Float64, range::UnitRange{Int})::MPS
-Construct the initial state of a chain with qubits in state
-`|ψᶿ⟩` at odd sites within `range` and `|0⟩` elsewhere, i.e.,
-`|ψ₀⟩ = |0⟩ ... |0⟩ |ψᶿ⟩ |0⟩ |ψᶿ⟩ ... |0⟩`
-"""
-function LimitedBiasedNeelState(sites::IndexSet, θ::Float64, range::UnitRange{Int})::MPS
     return MPS([
-        n in range && isodd(n) ? ITensorMPS.state(site, "ψᶿ"; θ = θ) : ITensorMPS.state(site, "Up") for
+        isodd(n) ? ITensorMPS.state(site, "ψᶿ"; θ = θ) : ITensorMPS.state(site, "Up") for
         (n, site) in enumerate(sites)
     ])
 end
 
 """
-    CentralQuasiParticle(sites::IndexSet)::MPS
-Construct an initial MPS state with a quasi-particle localized at the center
-of the chain, in a superposition of moving left and right.
+    CentralQuasiParticle(sites::IndexSet; center=length(sites) ÷ 2)::MPS
+Construct an initial MPS state with a quasi-particle localized at position center,
+in a superposition of moving left and right.
 """
-function CentralQuasiParticle(sites::IndexSet)::MPS
-    center = length(sites) ÷ 2
+function CentralQuasiParticle(sites::IndexSet; center=length(sites) ÷ 2)::MPS
     qp_moving_right = MPS(
         sites,
         [n == center - 2 || n == center - 1 ? "Dn" : "Up" for n in 1:length(sites)]
