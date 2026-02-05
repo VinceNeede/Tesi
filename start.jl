@@ -1,12 +1,12 @@
 using Distributed
 
-addprocs(8)
+addprocs(14)
 include("main.jl")
 
 const chain_length = 100
 const maxdim = 5096
 # const final_time = 15
-for γ in [0.2, 0.4, 0.8]
+for γ in [0.02, 0.04, 0.06, 0.08, 0.1, 0.2, 0.4]
     final_time = ceil(Int, 2.5/γ)
     execute(
 		γ, 
@@ -15,8 +15,8 @@ for γ in [0.2, 0.4, 0.8]
         maxdim, 
         final_time,
         [chain_length ÷ 2], 
-        500;
+        5000;
         flush_every=final_time+1,
-        nthreads=2,
+        nthreads=1,
         )
 end
