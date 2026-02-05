@@ -1,20 +1,24 @@
 using Distributed
-using MKL
 
-addprocs(20)
-@everywhere maxdim = 8192
-chain_length = 100
 include("main.jl")
-set_mpo()
-const θs = 0.1:0.1:0.9
-const γs = [0.08, 0.16]
 
-# @everywhere MKL.set_num_threads(3)
-# for γ in γs, θ in θs
-# 	exe(θ, γ, 40, 1000)
-# end
-rmprocs(7:nprocs()...)
-@everywhere MKL.set_num_threads(5)
-for θ in θs
-	exe(θ, 0.04, 40, 1000)
+function @main(_)
+    addprocs(10)
+    θs = 0.001:0.001:0.01
+    γ = 0.16
+    final_time = ceil(Int, 2.5/γ)
+    for th in θs
+        execute(
+            th,
+            γ,
+            "Z",
+            100,
+            2048,
+            final_time,
+            [50],
+            5_000;
+            flush_every=final_time + 1,
+            nthreads=1,
+        )
+    end
 end
