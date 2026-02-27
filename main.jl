@@ -54,7 +54,7 @@ Archive all `.dat` files in the specified folder into a tar file named
 """
 function archive_results(folder_name::String)
     run(pipeline(`tar -czf $(folder_name * ".tar.gz") $(glob("*.dat", folder_name))`, devnull))
-    run(pipeline(`rm $(glob("*.dat", folder_name))`, devnull))
+    # run(pipeline(`rm $(glob("*.dat", folder_name))`, devnull))
     nothing
 end
 
@@ -161,7 +161,7 @@ function execute(
     projs = get_projectors(measure_op)
     ops = Operators(sites, projs)
     params =
-        MCMCParameters(maxdim, per_site_prob_measure * chain_length, final_time, subsystems)
+        MCMCParameters(maxdim, per_site_prob_measure * chain_length, final_time, subsystems; cutoff=1.e-12)
     folder_name =
         set_folder(density, per_site_prob_measure, measure_op, chain_length, maxdim, final_time)
 

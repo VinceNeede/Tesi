@@ -12,6 +12,7 @@ the projectors, and the density operators for quasiparticle measurements.
 struct Operators
     odd_sites_mpo::MPO
     even_sites_mpo::MPO
+    full_mpo::MPO
     projectors::Vector{Matrix{<:Number}}
     density_ops::Vector{ITensor}
     function Operators(
@@ -20,8 +21,9 @@ struct Operators
     ) where {T<:Number}
         odd_sites_mpo = r54_odd(sites)
         even_sites_mpo = r54_even(sites)
+        full_mpo = apply(even_sites_mpo, odd_sites_mpo)
         density_ops = qp_tensors(sites)
-        new(odd_sites_mpo, even_sites_mpo, projectors, density_ops)
+        new(odd_sites_mpo, even_sites_mpo, full_mpo, projectors, density_ops)
     end
 end
 
@@ -143,21 +145,9 @@ function evolve!(mcmc::MPSQtMCMC, ops::Operators, params::MCMCParameters)
     check_running(mcmc) || return false
     cutoff = params.cutoff
     maxdim = params.maxdim
-    for mpo in (ops.odd_sites_mpo, ops.even_sites_mpo)
-        try
-            mcmc.state[:] = apply(mpo, mcmc.state; maxdim = maxdim, cutoff = cutoff)
-        catch e
-            set_error!(mcmc)
-            @error "id $(mcmc.id) errored during evolution: $e"
-            return false
-        end
-        finishing_χ = maxlinkdim(mcmc.state)
-        if finishing_χ ≥ maxdim
-            @warn "id $(mcmc.id) reached maximum dimension $(maxdim)"
-            set_error!(mcmc)
-            return false
-        end
-    end
+
+    mcmc.state[:] = apply(ops.full_mpo, mcmc.state; maxdim = maxdim, cutoff = cutoff)
+    normalize!(mcmc.state)
     return true
 end
 
@@ -255,7 +245,7 @@ function evolve_trajectory(
             end
             compute_save_measurements(mcmc, ops, params, time, entropy_io, density_io)
             if time % flush_every == 0
-                @info "Finished time step $time for trajectory $(mcmc.id)"
+                @info "Finished time step $time for trajectory $(mcmc.id)" χ=maxlinkdim(mcmc.state)
                 flush(entropy_io)
                 flush(density_io)
             end
@@ -263,7 +253,7 @@ function evolve_trajectory(
     finally
         close(entropy_io)
         close(density_io)
-        @info "Trajectory $(mcmc.id) finished"
+        @info "Trajectory $(mcmc.id) finished" χ=maxlinkdim(mcmc.state)
     end
     if !check_running(mcmc)
         @warn "Trajectory $(mcmc.id) did not complete successfully, deleting result files."

@@ -3,22 +3,22 @@ using Distributed
 include("main.jl")
 
 function @main(_)
-    addprocs(10)
-    θs = 0.001:0.001:0.01
-    γ = 0.16
-    final_time = ceil(Int, 2.5/γ)
-    for th in θs
+    addprocs(2)
+    θ = 0.5
+    γ = 0.2
+    final_time = 12#ceil(Int, 2.5/γ)
+    for χ in [256, 512, 1024]
         execute(
-            th,
+            θ,
             γ,
-            "Z",
-            100,
-            2048,
+            "X",
+            50,
+            χ,
             final_time,
-            [50],
-            5_000;
-            flush_every=final_time + 1,
-            nthreads=1,
+            3:25,
+            10;
+            flush_every=final_time+1,
+            nthreads=2,
         )
     end
 end
