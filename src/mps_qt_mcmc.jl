@@ -12,6 +12,7 @@ the projectors, and the density operators for quasiparticle measurements.
 struct Operators
     odd_sites_mpo::MPO
     even_sites_mpo::MPO
+    full_mpo::MPO
     projectors::Vector{Matrix{<:Number}}
     density_ops::Vector{ITensor}
     function Operators(
@@ -21,7 +22,8 @@ struct Operators
         odd_sites_mpo = r54_odd(sites)
         even_sites_mpo = r54_even(sites)
         density_ops = qp_tensors(sites)
-        new(odd_sites_mpo, even_sites_mpo, projectors, density_ops)
+        full_mpo = apply(even_sites_mpo, odd_sites_mpo)
+        new(odd_sites_mpo, even_sites_mpo, full_mpo, projectors, density_ops)
     end
 end
 
@@ -143,21 +145,22 @@ function evolve!(mcmc::MPSQtMCMC, ops::Operators, params::MCMCParameters)
     check_running(mcmc) || return false
     cutoff = params.cutoff
     maxdim = params.maxdim
-    for mpo in (ops.odd_sites_mpo, ops.even_sites_mpo)
-        try
-            mcmc.state[:] = apply(mpo, mcmc.state; maxdim = maxdim, cutoff = cutoff)
-        catch e
-            set_error!(mcmc)
-            @error "id $(mcmc.id) errored during evolution: $e"
-            return false
-        end
-        finishing_χ = maxlinkdim(mcmc.state)
-        if finishing_χ ≥ maxdim
-            @warn "id $(mcmc.id) reached maximum dimension $(maxdim)"
-            set_error!(mcmc)
-            return false
-        end
+    # for mpo in (ops.odd_sites_mpo, ops.even_sites_mpo)
+    mpo = ops.full_mpo
+    try
+        mcmc.state[:] = apply(mpo, mcmc.state; maxdim = maxdim, cutoff = cutoff)
+    catch e
+        set_error!(mcmc)
+        @error "id $(mcmc.id) errored during evolution: $e"
+        return false
     end
+    finishing_χ = maxlinkdim(mcmc.state)
+    if finishing_χ ≥ maxdim
+        @warn "id $(mcmc.id) reached maximum dimension $(maxdim)"
+        set_error!(mcmc)
+        return false
+    end
+    # end
     return true
 end
 
