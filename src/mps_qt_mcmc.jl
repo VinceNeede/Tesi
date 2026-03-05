@@ -210,8 +210,31 @@ function compute_save_measurements(
     entropies = Renyi_entropy(mcmc.state, params.subsystems, 1)
     densities = measure_qp(mcmc.state, ops.density_ops)
 
-    println(entropy_io, join([time; entropies], ","))
-    println(density_io, join([time; densities], ","))
+    entropy_format = Printf.Format("%6d" * repeat(",%+22.15e", length(entropies)) * "\n")
+    Printf.format(entropy_io, entropy_format, time, entropies...)
+    density_format = Printf.Format("%6d" * repeat(",%+22.15e", length(densities)) * "\n")
+    Printf.format(density_io, density_format, time, densities...)
+end
+
+"""
+    compute_save_measurements(
+        subsystem::AbstractVector{Int},
+        chain_length::Int,
+        entropy_io::IO,
+        density_io::IO,
+    )
+Write the header of the files
+"""
+function compute_save_measurements(
+    subsystem::AbstractVector{Int},
+    chain_length::Int,
+    entropy_io::IO,
+    density_io::IO,
+)
+    entropy_format = Printf.Format("%6s" * repeat(",%22d", length(subsystem)) * "\n")
+    Printf.format(entropy_io, entropy_format, "time", subsystem...)
+    density_format = Printf.Format("%6s" * repeat(",%22d", chain_length) * "\n")
+    Printf.format(density_io, density_format, "time", 1:chain_length...)
 end
 
 """
@@ -226,16 +249,17 @@ function evolve_trajectory(
     flush_every::Int = 1,
 )
     local entropy_io, density_io
+    max_χ = maxlinkdim(mcmc.state)
     try
         entropy_io = open(mcmc.entropy_file, "w")
         density_io = open(mcmc.density_file, "w")
-        println(entropy_io, join(["time"; params.subsystems], ","))
-        println(density_io, join(["time"; 1:length(ops.density_ops)], ","))
+        compute_save_measurements(params.subsystems, length(mcmc.state), entropy_io, density_io)
 
         @info "Starting trajectory $(mcmc.id)"
         compute_save_measurements(mcmc, ops, params, 0, entropy_io, density_io)
         for time = 1:params.final_time
             evolve!(mcmc, ops, params) || break # if an error occurs, stop evolution
+            max_χ = max(max_χ, maxlinkdim(mcmc.state))
             norm_after_evolve = norm(mcmc.state)
             norm_after_evolve ≈ 1.0 ||
                 @warn "MPS norm deviated from 1.0 after evolution at time $time" norm_after_evolve
@@ -253,7 +277,7 @@ function evolve_trajectory(
     finally
         close(entropy_io)
         close(density_io)
-        @info "Trajectory $(mcmc.id) finished" χ=maxlinkdim(mcmc.state)
+        @info "Trajectory $(mcmc.id) finished" max_χ
     end
     if !check_running(mcmc)
         @warn "Trajectory $(mcmc.id) did not complete successfully, deleting result files."

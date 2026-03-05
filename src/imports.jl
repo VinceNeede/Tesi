@@ -20,3 +20,4 @@ import Distributions:
     DiscreteUnivariateDistribution,
     Categorical,
 	Poisson
+import Printf
