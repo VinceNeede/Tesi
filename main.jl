@@ -32,8 +32,8 @@ function set_folder(
     folder_name =
         "data_" * join(
             [
-                round(density; sigdigits = 2);
-                round(per_site_prob; sigdigits = 2);
+                round(density; sigdigits = 4);
+                round(per_site_prob; sigdigits = 4);
                 measure_op;
                 chain_length;
                 maxdim;
@@ -54,7 +54,7 @@ Archive all `.dat` files in the specified folder into a tar file named
 """
 function archive_results(folder_name::String)
     run(pipeline(`tar -czf $(folder_name * ".tar.gz") $(glob("*.dat", folder_name))`, devnull))
-    # run(pipeline(`rm $(glob("*.dat", folder_name))`, devnull))
+    run(pipeline(`rm $(glob("*.dat", folder_name))`, devnull))
     nothing
 end
 
