@@ -53,8 +53,10 @@ Archive all `.dat` files in the specified folder into a tar file named
 `<folder_name>.tar` and remove the original `.dat` files.
 """
 function archive_results(folder_name::String)
-    run(pipeline(`tar -czf $(folder_name * ".tar.gz") $(glob("*.dat", folder_name))`, devnull))
-    run(pipeline(`rm $(glob("*.dat", folder_name))`, devnull))
+    cd(folder_name) do
+        run(pipeline(`find . -maxdepth 1 -name "*.dat" -print0`, `tar -czf ../$(folder_name * ".tar.gz") --null -T -`))
+        foreach(rm, glob("*.dat"))
+    end
     nothing
 end
 
