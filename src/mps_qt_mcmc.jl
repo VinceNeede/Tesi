@@ -264,6 +264,7 @@ function evolve_trajectory(
             norm_after_evolve ≈ 1.0 ||
                 @warn "MPS norm deviated from 1.0 after evolution at time $time" norm_after_evolve
             samples = sample_measurement_sites(mcmc, params)
+            samples = (sort ∘ unique)(samples) # for projective local measurements, P^2=P, and order is irrelevant
             for isite in samples
                 project_on_site!(mcmc, isite, ops.projectors, params)
             end
