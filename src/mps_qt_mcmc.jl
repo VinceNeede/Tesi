@@ -173,7 +173,7 @@ to the probabilities computed from the current MPS state.
 function project_on_site!(
     mcmc::MPSQtMCMC,
     isite::Int,
-    projectors::Vector{AbstractMatrix{<:Number}},
+    projectors::Vector,
     params::MCMCParameters,
 )
     probs = expect(mcmc.state, projectors; sites = isite)
