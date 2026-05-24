@@ -15,6 +15,8 @@ struct Operators
     full_mpo::MPO
     projectors::Vector{Matrix{<:Number}}
     density_ops::Vector{ITensor}
+end
+
     function Operators(
         sites::ITensors.Indices,
         projectors::Vector{Matrix{T}},
@@ -23,9 +25,9 @@ struct Operators
         even_sites_mpo = r54_even(sites)
         full_mpo = apply(even_sites_mpo, odd_sites_mpo)
         density_ops = qp_tensors(sites)
-        new(odd_sites_mpo, even_sites_mpo, full_mpo, projectors, density_ops)
+        return Operators(odd_sites_mpo, even_sites_mpo, full_mpo, projectors, density_ops)
     end
-end
+
 
 """
     MCMCParameters(
