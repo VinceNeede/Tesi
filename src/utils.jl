@@ -141,7 +141,7 @@ measure_singular_eigvals(psi::MPS, pos::AbstractVector{Int}) =
 Compute the Rényi entropy of order `n` from the singular eigenvalues.
 `e` is a small cutoff to prevent ``0log(0)`` issues.
 """
-function Renyi_entropy(singualar_evals::Vector{Float64}, n::Int; e = eps()/2)
+function Renyi_entropy(singualar_evals::Vector{T}, n::Int; e = eps(T)/2) where {T<:AbstractFloat}
     prob = singualar_evals .^ 2
     prob = filter(>(e), prob)
     if n == 1
@@ -151,17 +151,17 @@ function Renyi_entropy(singualar_evals::Vector{Float64}, n::Int; e = eps()/2)
 end
 
 """
-    Renyi_entropy(mps::MPS, pos::Int, n::Int; e=eps()/2)
-    Renyi_entropy(mps::MPS, pos::AbstractVector{Int}, n::Int; e=eps()/2)
+    Renyi_entropy(mps::MPS, pos::Int, n::Int)
+    Renyi_entropy(mps::MPS, pos::AbstractVector{Int}, n::Int)
 Compute the Rényi entropy of order `n` at a given cut position `pos` in
 the MPS `mps`.
 """
-function Renyi_entropy(mps::MPS, pos::AbstractVector{Int}, n::Int; e = eps()/2)
+function Renyi_entropy(mps::MPS, pos::AbstractVector{Int}, n::Int)
     all_sevals = measure_singular_eigvals(mps, pos)
-    return [Renyi_entropy(sevals, n; e = e) for sevals in all_sevals]
+    return [Renyi_entropy(sevals, n) for sevals in all_sevals]
 end
 
-function Renyi_entropy(mps::MPS, pos::Int, n::Int; e = eps()/2)
+function Renyi_entropy(mps::MPS, pos::Int, n::Int)
     all_sevals = measure_singular_eigvals(mps, pos)
-    return [Renyi_entropy(sevals, n; e = e) for sevals in all_sevals]
+    return [Renyi_entropy(sevals, n) for sevals in all_sevals]
 end
