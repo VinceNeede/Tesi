@@ -13,13 +13,13 @@ struct Operators
     odd_sites_mpo::MPO
     even_sites_mpo::MPO
     full_mpo::MPO
-    projectors::Vector{Matrix{<:Number}}
+    projectors::Vector
     density_ops::Vector{ITensor}
 end
 
     function Operators(
         sites::ITensors.Indices,
-        projectors::Vector{Matrix{T}},
+        projectors::Vector{T}
     ) where {T<:Number}
         odd_sites_mpo = r54_odd(sites)
         even_sites_mpo = r54_even(sites)
