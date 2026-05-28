@@ -54,7 +54,12 @@ Archive all `.dat` files in the specified folder into a tar file named
 """
 function archive_results(folder_name::String)
     cd(folder_name) do
-        run(pipeline(`find . -maxdepth 1 -name "*.dat" -print0`, `tar -czf ../$(folder_name * ".tar.gz") --null -T -`))
+		archive_path = "../$(folder_name * ".tar.gz")"
+		if isfile(archive_path)
+			run(pipeline(`find . -maxdepth 1 -name "*.dat" -print0`, `tar -rzf $archive_path --null -T -`))
+		else
+			run(pipeline(`find . -maxdepth 1 -name "*.dat" -print0`, `tar -czf $archive_path --null -T -`))
+		end
         foreach(rm, glob("*.dat"))
     end
     nothing
