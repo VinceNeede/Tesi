@@ -13,19 +13,21 @@ struct Operators
     odd_sites_mpo::MPO
     even_sites_mpo::MPO
     full_mpo::MPO
-    projectors::Vector{Matrix{<:Number}}
+    projectors::Vector
     density_ops::Vector{ITensor}
+end
+
     function Operators(
         sites::ITensors.Indices,
-        projectors::Vector{Matrix{T}},
+        projectors::Vector{T}
     ) where {T<:Number}
         odd_sites_mpo = r54_odd(sites)
         even_sites_mpo = r54_even(sites)
         full_mpo = apply(even_sites_mpo, odd_sites_mpo)
         density_ops = qp_tensors(sites)
-        new(odd_sites_mpo, even_sites_mpo, full_mpo, projectors, density_ops)
+        return Operators(odd_sites_mpo, even_sites_mpo, full_mpo, projectors, density_ops)
     end
-end
+
 
 """
     MCMCParameters(
@@ -171,7 +173,7 @@ to the probabilities computed from the current MPS state.
 function project_on_site!(
     mcmc::MPSQtMCMC,
     isite::Int,
-    projectors::Vector{Matrix{<:Number}},
+    projectors::Vector,
     params::MCMCParameters,
 )
     probs = expect(mcmc.state, projectors; sites = isite)
@@ -264,6 +266,7 @@ function evolve_trajectory(
             norm_after_evolve ≈ 1.0 ||
                 @warn "MPS norm deviated from 1.0 after evolution at time $time" norm_after_evolve
             samples = sample_measurement_sites(mcmc, params)
+            samples = (sort ∘ unique)(samples) # for projective local measurements, P^2=P, and order is irrelevant
             for isite in samples
                 project_on_site!(mcmc, isite, ops.projectors, params)
             end
