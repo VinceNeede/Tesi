@@ -23,5 +23,6 @@ import Distributions:
 import Printf
 
 import CUDA: 
+    CUDA,
     CuArray,
     cu
