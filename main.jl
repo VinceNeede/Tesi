@@ -3,6 +3,7 @@ import ITensors: IndexSet
 import ITensorMPS: MPS, siteinds
 import LoggingExtras: FileLogger, with_logger
 using Glob
+using Base.Iterators: partition
 
 """
     set_folder(density::Float64, per_site_prob::Float64, chain_length::Int, maxdim::Int, final_time::Int)::String
@@ -180,4 +181,55 @@ function execute(
         length(glob("*.dat", folder_name))
 
     archive_results(folder_name)
+end
+
+function execute_cuda(
+    density::Float64,
+    per_site_prob_measure::Float64,
+    measure_op::String,
+    chain_length::Int,
+    maxdim::Int,
+    final_time::Int,
+    subsystems::AbstractVector{Int},
+    num_trajectories::Int;
+    chunk_size::Int=4,
+    flush_every::Int=1,
+)
+    sites = siteinds("S=1/2", chain_length)
+    projs = get_projectors(measure_op)
+    ops = cu(Operators(sites, projs))
+    params =
+        MCMCParameters(maxdim, per_site_prob_measure * chain_length, final_time, subsystems; cutoff=1.e-12)
+    folder_name =
+        set_folder(density, per_site_prob_measure, measure_op, chain_length, maxdim, final_time)
+
+    starting_mps = cu(BiasedNeelState(sites, density))
+
+    logger = timestamp_logger(
+            FileLogger(
+                joinpath("$(folder_name).log");
+            ),
+        )
+    with_logger(logger) do
+        for chunk in partition(1:num_trajectories, chunk_size)
+            @sync begin
+                for _ in chunk
+                    Threads.@spawn begin
+                        evolve_trajectory(
+                            MPSQtMCMC(copy(starting_mps); root_folder = folder_name),
+                            ops,
+                            params;
+                            flush_every=flush_every
+                        )
+                    end
+                end
+            end
+            GC.gc(true)
+            CUDA.reclaim()
+        end
+    end
+
+
+    archive_results(folder_name)
+    return folder_name
 end

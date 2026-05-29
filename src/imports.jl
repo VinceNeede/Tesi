@@ -21,3 +21,7 @@ import Distributions:
     Categorical,
 	Poisson
 import Printf
+
+import CUDA: 
+    CuArray,
+    cu

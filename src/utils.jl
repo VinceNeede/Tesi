@@ -136,6 +136,10 @@ end
 measure_singular_eigvals(psi::MPS, pos::AbstractVector{Int}) =
     measure_singular_eigvals!(copy(psi), pos)
 
+function Renyi_entropy(CuA::CuArray, n::Int)
+    Renyi_entropy(Array(CuA), n)
+end
+
 """
     Renyi_entropy(singualar_evals::Vector{Float64}, n::Int; e=eps()/2)
 Compute the Rényi entropy of order `n` from the singular eigenvalues.

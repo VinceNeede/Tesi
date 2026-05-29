@@ -28,6 +28,15 @@ function Operators(
     return Operators(odd_sites_mpo, even_sites_mpo, full_mpo, projectors, density_ops)
 end
 
+function CUDA.cu(ops::Operators)
+    return Operators(
+        cu(ops.odd_sites_mpo), 
+        cu(ops.even_sites_mpo), 
+        cu(ops.full_mpo), 
+        cu.(ops.projectors), 
+        cu.(ops.density_ops)
+        )
+end
 
 """
     MCMCParameters(

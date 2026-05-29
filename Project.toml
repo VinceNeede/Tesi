@@ -6,6 +6,7 @@ authors = ["VinceNeede <v.bisogno3@studenti.unipi.it>"]
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
@@ -26,6 +27,7 @@ UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 [compat]
 ArgParse = "1.2.0"
 CSV = "0.10.15"
+CUDA = "5.11.2"
 DataFrames = "1.7.0"
 Dates = "1.11.0"
 Distributions = "0.25.118"
