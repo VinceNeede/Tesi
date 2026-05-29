@@ -4,6 +4,7 @@ import ITensorMPS: MPS, siteinds
 import LoggingExtras: FileLogger, with_logger
 using Glob
 using Base.Iterators: partition
+using Distributed
 
 """
     set_folder(density::Float64, per_site_prob::Float64, chain_length::Int, maxdim::Int, final_time::Int)::String
