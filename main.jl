@@ -217,12 +217,18 @@ function execute_cuda(
             @sync begin
                 for _ in chunk
                     Threads.@spawn begin
-                        evolve_trajectory(
-                            MPSQtMCMC(copy(starting_mps); root_folder = folder_name),
-                            ops,
-                            params;
-                            flush_every=flush_every
-                        )
+                        try
+                            evolve_trajectory(
+                                MPSQtMCMC(copy(starting_mps); root_folder = folder_name),
+                                ops,
+                                params;
+                                flush_every=flush_every
+                            )
+                        catch e
+                            @error "Trajectory failed, skipping" exception=(e, catch_backtrace())
+                            GC.gc(true)
+                            CUDA.reclaim()
+                        end
                     end
                 end
             end
